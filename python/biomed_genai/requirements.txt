@@ -1,0 +1,7 @@
+databricks-sdk>=0.19.1
+mlflow>=2.11
+databricks-genai-inference>=0.2.1
+databricks_vectorsearch>=0.23
+overrides>=7.7.0
+nest-asyncio>=1.5.6
+pkginfo>=1.10.0
