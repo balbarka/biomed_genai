@@ -29,6 +29,7 @@ import os
 
 _nb_path_lst = ("/Workspace" + dbutils.entry_point.getDbutils().notebook().getContext().notebookPath().getOrElse(None)).split('/')
 APP_ROOT_PATH = os.path.abspath('/'.join(_nb_path_lst[0:_nb_path_lst.index('databricks')]))
+PYTHON_ROOT_PATH = os.path.join(APP_ROOT_PATH, "python")
 del _nb_path_lst
 
 # Update config paths so that they are absolute
@@ -43,6 +44,25 @@ if os.path.exists(APP_CONFIG_JSON_FOLDER):
     APP_CONFIG_JSON_FOLDER = os.path.abspath(APP_CONFIG_JSON_FOLDER)
 else:    
     APP_CONFIG_JSON_FOLDER = os.path.join(APP_ROOT_PATH, APP_CONFIG_JSON_FOLDER)
+
+# COMMAND ----------
+
+import sys
+
+# Add modular code assets to python path so it can be imported
+if PYTHON_ROOT_PATH not in sys.path:
+    sys.path.insert(0, PYTHON_ROOT_PATH)
+
+from biomed_genai.config import BioMedConfig
+
+biomed = BioMedConfig(_catalog_name = APP_CATALOG,
+                      _schema_raw_name = APP_RAW_SCHEMA,
+                      _schema_curated_name = APP_CURATED_SCHEMA,
+                      _schema_processed_name = APP_PROCESSED_SCHEMA,
+                      _config_sql_folder = APP_CONFIG_SQL_FOLDER,
+                      _config_json_folder = APP_CONFIG_JSON_FOLDER)
+
+del BioMedConfig  
 
 # COMMAND ----------
 
@@ -92,9 +112,10 @@ dbutils.widgets.dropdown(name="SHOW_GRAPHIC",
 
 # DBTITLE 1,Conditional Display of Visualizations
 if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.getArgument("SHOW_GRAPHIC") == 'true'):
-    viz = import_module_from_root_relative_path(APP_ROOT_PATH, 'python/biomed_genai/visualizations.py')
     if dbutils.widgets.getArgument("SHOW_TABLE") == 'true':
-        displayHTML(viz.workflow_table(config=biomed))
+        from biomed_genai.visualizations import workflow_table
+        displayHTML(workflow_table(config=biomed))
+        del workflow_table
     if dbutils.widgets.getArgument("SHOW_GRAPHIC") == 'true':
         import subprocess
         commands = [["apt-get", "update"],
@@ -102,43 +123,9 @@ if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.get
                     ["pip", "install", "graphviz"]]
         for command in commands:
             try:
-                #print(f"Running command: {' '.join(command)}")
-                #result = subprocess.run(command, check=True, capture_output=True, text=True)
-                #print(f"Command succeeded with output:\n{result.stdout}")
                 subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except subprocess.CalledProcessError as e:
-                #print(f"Error occurred while running command: {' '.join(command)}")
-                #print(f"Error output:\n{e.stderr}")
                 pass
-        displayHTML(viz.workflow_graphic(config=biomed))
-
-# COMMAND ----------
-
-# Visualization Scratch Code
-
-#config.raw_metadata_xml.sql_relative_url
-#config.raw_metadata_xml.sql_file
-#config.raw_metadata_xml.uc_relative_url
-#config.raw_metadata_xml.name
-#config.raw_metadata_xml.cp.uc_relative_url
-#config.raw_metadata_xml.cp.name
-#config.raw_search_hist.sql_relative_url
-#config.raw_search_hist.sql_file
-#config.raw_search_hist.uc_relative_url
-#config.raw_search_hist.name
-#config.raw_articles_xml.sql_relative_url
-#config.raw_articles_xml.sql_file
-#config.raw_articles_xml.uc_relative_url
-#config.raw_articles_xml.name
-#config.curated_articles_xml.sql_relative_url
-#config.curated_articles_xml.sql_file
-#config.curated_articles_xml.uc_relative_url
-#config.curated_articles_xml.name
-#config.curated_articles_xml.cp.uc_relative_url
-#config.curated_articles_xml.cp.name
-#config.processed_articles_content.sql_relative_url
-#config.processed_articles_content.sql_file
-#config.processed_articles_content.uc_relative_url
-#config.processed_articles_content.name
-#config.processed_articles_content.cp.uc_relative_url
-#config.processed_articles_content.cp.name
+        from biomed_genai.visualizations import workflow_graphic
+        displayHTML(workflow_graphic(config=biomed))
+        del workflow_graphic

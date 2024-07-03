@@ -29,14 +29,15 @@ class PaperSearchResponse:
         self.pmids = set(["PMC"+i.text for i in self.response_tree.find("IdList")])
 
 
-def search_papers(keyword: str,
-                  min_dte: str = "2022/01/01",
-                  max_dte: Optional[str] = None,
-                  ret_max: int = 5000) -> {str}:
+def search_articles(keyword: str,
+                    min_dte: str,
+                    max_dte: Optional[str] = None,
+                    ret_max: int = 5000) -> {str}:
     """Search to retrieve docs"""
-    date_range = f"mindate={min_dte}&maxdate={max_dte or datetime.today().strftime('%Y/%m/%d')}"
+    max_dte = max_dte or (datetime.today() - datetime.timedelta(days=1)).strftime('%Y/%m/%d')
+    date_range = f"mindate={min_dte}&maxdate={max_dte}"
     search_base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&usehistory=y"
-    search_page_url = f"{search_base_url}&term={keyword}&{date_range}&retmax={ret_max}" + "&retstart={i_pmid}"
+    search_page_url = f'{search_base_url}&term="{keyword}"&{date_range}&retmax={ret_max}' + '&retstart={i_pmid}'
 
     response = PaperSearchResponse(requests.get(search_page_url.format(i_pmid=0)))
     pmids = response.pmids
@@ -55,18 +56,18 @@ def get_search_hist_args(keywords: Union[str, List[str]],
                          max_dte: Optional[str] = None) -> List[dict]:
     # Get a date range that will avoid creating gaps in search range from previous runs
     keywords: [str] = keywords if isinstance(keywords, list) else [str(keywords),]
-    max_dte = max_dte or datetime.today().strftime('%Y/%m/%d')
+    max_dte = max_dte or (datetime.today() - datetime.timedelta(days=1)).strftime('%Y/%m/%d')
     search_args_df = search_hist.spark.createDataFrame(data=[(kw.lower(), min_dte, max_dte) for kw in keywords],
                                                        schema="keyword STRING, min_dte STRING, max_dte STRING")
     args = search_args_df.alias('a').join(search_hist.df.alias('h'), "keyword", "outer") \
                          .withColumn('h_min', F.coalesce(F.col('h.min_dte'), F.col('a.min_dte'))) \
                          .withColumn('h_max', F.coalesce(F.col('h.max_dte'), F.col('a.max_dte'))) \
                          .select(F.col('keyword').alias('keyword'),
-                                 F.when(F.col('a.min_dte < h_min'),
+                                 F.when(F.col('a.min_dte') < F.col('h_min'),
                                         F.col('a.min_dte')).otherwise(F.col('h_min')).alias('min_dte'),
-                                 F.when(F.col('a.max_dte > h_max'),
+                                 F.when(F.col('a.max_dte') > F.col('h_max'),
                                         F.col('a.max_dte')).otherwise(F.col('h_max')).alias('max_dte')) \
-                         .filter(F.col('min_dte <= max_dte')).collect()
+                         .filter(F.col('min_dte') <= F.col('max_dte')).collect()
     return [r.asDict() for r in args]
 
 
@@ -116,12 +117,12 @@ def curate_xml_dict(xmlPath: str):
         return None
 
 
-def get_needed_pmids_df(search_hist: UC_Table,
-                        metadata: UC_Table,
-                        articles: UC_Volume,
-                        keywords: Union[str, List[str]] = None,
-                        min_dte: str = "2022/01/01",
-                        max_dte: Optional[str] = None):
+def download_pending_articles(search_hist: UC_Table,
+                              metadata: UC_Table,
+                              articles: UC_Volume,
+                              keywords: Union[str, List[str]] = None,
+                              min_dte: str = "2022/01/01",
+                              max_dte: Optional[str] = None):
     # This will return a list of needed pmids based upon what has already been searched and pulled as well as what
     # is still pending download. If keywords is left blank, range will be applied to all keywords already in search hist
     if keywords:
@@ -134,12 +135,12 @@ def get_needed_pmids_df(search_hist: UC_Table,
 
     max_dte = max_dte or datetime.today().strftime('%Y/%m/%d')
     kwargs_list = get_search_hist_args(keywords, search_hist, min_dte, max_dte)
-    pmids = search_papers(**kwargs_list[0])
+    pmids = search_articles(**kwargs_list[0])
     for kwargs in kwargs_list[1:]:
         sleep(0.5)  # limit 2 api calls/sec
-        pmids |= search_papers(**kwargs)
+        pmids |= search_articles(**kwargs)
 
-    print(f"Retrieved {len(pmids)} articles from api")
+    print(f"Search identified {len(pmids)} articles.")
 
     pmids_df = metadata.df.sparkSession.createDataFrame([(i,) for i in pmids], "AccessionId STRING")
     file_type = metadata.name.split('_')[-1]

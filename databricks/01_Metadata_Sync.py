@@ -26,13 +26,31 @@
 # MAGIC For the ingest of PubMed metadata data into `PUBMED_METADATA_TABLE` we'll be using [Upsert from streaming queries using foreachBatch](https://docs.databricks.com/en/structured-streaming/delta-lake.html#upsert-from-streaming-queries-using-foreachbatch). However, there are quite a few configurations that go into this streaming process that we'll document below:
 # MAGIC
 # MAGIC  * **CloudFormat and Options** - We are going to [query a cloud storage object using autoloader](https://docs.databricks.com/en/query/streaming.html#query-data-in-cloud-object-storage-with-auto-loader). Thus, we will set the format to do this as `.format("cloudFiles")`. However, cloudFiles takes additional arguements, called *options*, to ensure that the csv source is read correctly. We'll set those configurations in the dict `readStream_options` and apply those configuration to the readStream using [`.options`](https://spark.apache.org/docs/3.1.1/api/python/reference/api/pyspark.sql.DataFrameReader.options.html).
-# MAGIC  * **Load Source** - We'll use our notebook scope vaariable `PUBMED_SOURCE_METADATA_BUCKET` to [`.load`](https://spark.apache.org/docs/3.1.1/api/python/reference/api/pyspark.sql.streaming.DataStreamReader.load.html) from our S3 bucket source.
+# MAGIC  * **Load Source** - We'll use our notebook scope variable `PUBMED_SOURCE_METADATA_BUCKET` to [`.load`](https://spark.apache.org/docs/3.1.1/api/python/reference/api/pyspark.sql.streaming.DataStreamReader.load.html) from our S3 bucket source.
 # MAGIC  * **Select Columns** - While a common pattern is to ingest a data file raw and persist then run a second query that curates the source file, we are not going to do that for this metadata file. To avoid that unnecessary intermediate step, we are going to transform into our target table format using [`.select`](https://spark.apache.org/docs/3.1.1/api/python/reference/api/pyspark.sql.DataFrame.select.html). This is the same select method that is availailable with regular pyspark dataframes. For readability, we are going to write our select columns as a list of pyspark columns in `readStream_columns` and pass as positional arguments into the `.select` method.
 # MAGIC  * **WriteStream for each microbatch** - You are able to write a structured streaming dataframe by converting the streaming Dataframe to [`.writeStream`](https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.DataFrame.writeStream.html#pyspark-sql-dataframe-writestream) and the use [`.foreachBatch`](https://spark.apache.org/docs/3.1.3/api/python/reference/api/pyspark.sql.streaming.DataStreamWriter.foreachBatch.html) to write each microbatch. `.foreachBatch` takes a function arguement, `upsert_metadata`. What's nice about this api design is that the function accepts microbatches as dataframes. Thus, the syntax that we use for streaming into delta tables is the same syntax that we use for batch merge jobs.
 # MAGIC
 # MAGIC **NOTE**: Gathering large arguments like this is not just helpful for readability, it also helps mitigate syntax errors by the developer. Since this streaming job was getting a little verbose, we applied the technique below.
 # MAGIC
 # MAGIC **NOTE**: The [trigger](https://docs.databricks.com/en/structured-streaming/triggers.html#configuring-incremental-batch-processing) setting of available sets the behavior to running as an incremental batch which makes sense because we are running this as a job once a day. 
+
+# COMMAND ----------
+
+class ExampleClass:
+    def __init__(self):
+        setattr(self, 'schema', type('Schema', (object,), {}))
+
+# Create an instance of ExampleClass
+example_instance = ExampleClass()
+
+# Use getattr to access 'attribute_name'
+attribute_value = getattr(example_instance, 'schema')
+
+print(attribute_value)
+
+# COMMAND ----------
+
+?spark.createDataFrame
 
 # COMMAND ----------
 
@@ -99,13 +117,13 @@ spark.readStream.format("cloudFiles") \
 
 # COMMAND ----------
 
-INSPECT_METADATA_HIST = True
+INSPECT_METADATA_HIST = False
 if INSPECT_METADATA_HIST:
     hist = spark.sql(f"DESCRIBE HISTORY {biomed.raw_metadata_xml.uc_name}")
     display(hist)
 
 # COMMAND ----------
 
-INSPECT_METADATA = True
+INSPECT_METADATA = False
 if INSPECT_METADATA:
     display(biomed.raw_metadata_xml.df)
