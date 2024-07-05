@@ -115,3 +115,7 @@ INSPECT_SEARCH_HIST = True
 
 if INSPECT_SEARCH_HIST:
     display(biomed.raw_search_hist.df)
+
+# COMMAND ----------
+
+

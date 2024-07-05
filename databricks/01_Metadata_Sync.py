@@ -36,24 +36,6 @@
 
 # COMMAND ----------
 
-class ExampleClass:
-    def __init__(self):
-        setattr(self, 'schema', type('Schema', (object,), {}))
-
-# Create an instance of ExampleClass
-example_instance = ExampleClass()
-
-# Use getattr to access 'attribute_name'
-attribute_value = getattr(example_instance, 'schema')
-
-print(attribute_value)
-
-# COMMAND ----------
-
-?spark.createDataFrame
-
-# COMMAND ----------
-
 # DBTITLE 0,Stream Configurations
 from pyspark.sql import SparkSession, DataFrame, functions as F
 from delta.tables import DeltaTable
