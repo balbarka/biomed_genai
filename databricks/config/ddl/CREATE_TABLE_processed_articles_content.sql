@@ -6,5 +6,12 @@ CREATE TABLE IF NOT EXISTS {uc_name} (
     year      STRING,
     citation  STRING,
     content   STRING)
--- BRAD TODO: add table properties for managed sync
-USING DELTA;
+USING DELTA
+TBLPROPERTIES (
+  delta.checkpointPolicy = 'v2',
+  delta.enableDeletionVectors = true,
+  delta.enableRowTracking = true,
+  delta.feature.deletionVectors = 'supported',
+  delta.feature.rowTracking = 'supported',
+  delta.feature.v2Checkpoint = 'supported',
+  delta.enableChangeDataFeed = true)

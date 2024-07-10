@@ -1,0 +1,12 @@
+{
+  "endpoint_name": "biomed",
+  "index_name": "{index_name}",
+  "primary_key": "id",
+  "source_table_name": "{source_table_name}",
+  "pipeline_type": "TRIGGERED",
+  "embedding_dimension": null,
+  "embedding_vector_column": null,
+  "embedding_source_column": "content",
+  "embedding_model_endpoint_name": "databricks-bge-large-en",
+  "sync_computed_embeddings": false
+}
