@@ -27,9 +27,13 @@ def workflow_table(config):
     <tr><td><b>cp</b>: <a href={config.curated_articles_xml.cp.uc_relative_url} style="text-decoration:none">{config.curated_articles_xml.cp.name}</a></td></tr>
     <tr><td ROWSPAN=3 style="background-color: yellow;"><b>processed_articles_content</b></td>
         <td><b>ddl</b>: <a href={config.processed_articles_content.sql_relative_url} style="text-decoration:none">{config.processed_articles_content.sql_file}</a></td>
-        <td ROWSPAN=3><b>raw_metadata</b> is the table that syncs with all PubMed articles list.</br>It will also maintain the download status of all articles.</td></tr>
+        <td ROWSPAN=3><b>processed_articles_content</b> is the table that has the chunked article content of PubMed articles.</br>It will be used for not only populating our vector store index, but also creating synthetic datasets.</td></tr>
     <tr><td><b>table</b>: <a href={config.processed_articles_content.uc_relative_url} style="text-decoration:none">{config.processed_articles_content.name}</a></td></tr>
     <tr><td><b>cp</b>: <a href={config.processed_articles_content.cp.uc_relative_url} style="text-decoration:none">{config.processed_articles_content.cp.name}</a></td></tr> 
+    <tr><td ROWSPAN=2 style="background-color: yellow;"><b>processed_articles_content_vs_index</b></td>
+        <td><b>ddl</b>: <a href={config.vector_search.biomed.processed_articles_content_vs_index.json_relative_url} style="text-decoration:none">{config.vector_search.biomed.processed_articles_content_vs_index.json_file}</a></td>
+        <td ROWSPAN=2><b>raw_metadata</b> is the index that serves our article content.</br>While it has a UC identity, it is assigned a workspace endpoint and therefor should be considered a workspace entity. This helps explain why the entity is also discoverable via workspace -> compute -> vector search.</td></tr>
+    <tr><td><b>index</b>: <a href={config.processed_articles_content.sql_relative_url} style="text-decoration:none">{config.processed_articles_content.name}</a></td></tr>    
     </table>"""
     return inspect_html
 
@@ -84,6 +88,13 @@ def workflow_graphic(config):
                        'href': hyperlink,
                        'target': "_blank"})
 
+    def index_node(cluster, name, hyperlink=''):
+       cluster.node(name, name,
+                    fillcolor='#C1E1C1', style='filled', shape='tab',
+                    **{'tooltip': name,
+                       'href': hyperlink,
+                       'target': "_blank"})
+
     with dot.subgraph(name='cluster_biomed_pipeline') as pp:
         pp.body.append('label="{BioMed GenAI Pipeline}"')
         with pp.subgraph(name='cluster_pmc') as pmc:
@@ -123,10 +134,9 @@ def workflow_graphic(config):
 
             pro.node('processed_synthetic', '', fillcolor='red', shape='point')
             uc_table_node(pro, 'articles_content', hyperlink=config.processed_articles_content.uc_relative_url)
-            pro.node('processed_articles_content_vs_index', 'processed_articles_content_vs_index', fillcolor='#C1E1C1', style='filled', shape='tab',
-                   **uc_link(config.processed_articles_content.uc_relative_url))
-            uc_ds_node(pro, 'pretrain_ds')
-            uc_ds_node(pro, 'instruct_ds')
+            index_node(pro, 'processed_articles_content_vs_index', hyperlink=config.vector_search.biomed.processed_articles_content_vs_index.ws_relative_url)
+            uc_ds_node(pro, 'cpt_ds')
+            uc_ds_node(pro, 'ift_ds')
             uc_ds_node(pro, 'eval_ds')
 
         dot.edge('pmc_search', 'search_hist')

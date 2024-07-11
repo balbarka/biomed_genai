@@ -5,7 +5,7 @@
 # MAGIC
 # MAGIC To make the configurations for our BioMed GenAI workflow more straight forward to comprehend we have wrapped a lot of conventience functions into a python module configuration dataclass, **BioMedConfig**. This notebook will be deticated to only going through how configurations for this workflow are managed since they are a bit different than typical configuration libarary approaches.
 # MAGIC
-# MAGIC This notebook isn't critical to demo and can be skipped if no overview is necessary.
+# MAGIC This notebook isn't critical to demo and can be skipped if no overview is necessary. However, there is a benefit to run this if the biomed_genai entities haven't been initialized yet. This will create all entities which can be time consuming for vector search endpoint and vector search index.
 # MAGIC
 # MAGIC Setup is intended to be executed using [%run](https://docs.databricks.com/en/notebooks/notebook-workflows.html). Which is used to run our setup notebook, <a href="$./config/setup" target="_blank">./config/setup</a>. That setup notebook will include two python modules (<a href="$../python/biomed_genai/config.py" target="_blank">config.py</a> & <a href="$../python/biomed_genai/visualizations.py" target="_blank">visualizations.py</a>) which it will import using [importlib](https://docs.python.org/3/library/importlib.html). Thus every notebook will have the same configurations due to a single run call and the following dependencies:
 # MAGIC
@@ -24,7 +24,7 @@
 # MAGIC | `APP_CURATED_SCHEMA`     | Defaults to **curated**. This is the name of the schema within `APP_CATALOG` where the following entities will be created: </br>&bull; {`APP_CATALOG`}.{`APP_CURATED_SCHEMA`}**.articles_xml** (Table) - Downloaded article sections stored a delta table records.</br>&bull; {`APP_CATALOG`}.{`APP_CURATED_SCHEMA`}.**_checkpoints** (Volume) - The checkpoints folder of for **articles_xml**.
 # MAGIC | `APP_PROCESSED_SCHEMA`   | Defaults to **processed**. This is the name of the schema within `APP_CATALOG` where the following entities will be created: </br>&bull; {`APP_CATALOG`}.{`APP_PROCESSED_SCHEMA`}**.articles_content** (Table) - Parsed and chunked articles content.</br>&bull; {`APP_CATALOG`}.{`APP_PROCESSED_SCHEMA`}.**_checkpoints** (Volume) - The checkpoints folder of for **articles_content**.
 # MAGIC | `APP_CONFIG_SQL_FOLDER`  | Defaults to **databricks/config/ddl** will be the directory containing the following \*.sql ddl files: </br>&bull; **CREATE_CATALOG_biomed_pipeline.sql** </br>&bull; **CREATE_SCHEMA_raw.sql** </br>&bull; **CREATE_SCHEMA_curated.sql**</br>&bull; **CREATE_SCHEMA_processed.sql** </br>&bull; **CREATE_TABLE_raw_metadata_xml.sql** </br>&bull; **CREATE_VOLUME_raw_checkpoints.sql** </br>&bull; **CREATE_TABLE_raw_search_hist.sql** </br>&bull; **CREATE_VOLUME_raw_articles_xml.sql** </br>&bull; **CREATE_TABLE_curated_articles_xml.sql** </br>&bull; **CREATE_VOLUME_curated_checkpoints.sql** </br>&bull; **CREATE_TABLE_processed_articles_content.sql** </br>&bull; **CREATE_VOLUME_processed_checkpoints.sql** |
-# MAGIC | `APP_CONFIG_JSON_FOLDER` | TODO: List dataset and VectorStore entities |
+# MAGIC | `APP_CONFIG_JSON_FOLDER` | Also defaults to **databricks/config/ddl** will be the directory containing the following \*.json config files: </br>&bull; **CREATE_VS_ENDPOINT_biomed.json** </br>&bull; **CREATE_VS_INDEX_processed_articles_content_vs_index.json** |
 
 # COMMAND ----------
 
@@ -36,7 +36,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./config/setup $SHOW_TABLE=true $SHOW_GRAPH=false
+# MAGIC %run ./config/setup_workflow $SHOW_TABLE=true $SHOW_GRAPH=false
 
 # COMMAND ----------
 
@@ -54,7 +54,7 @@ biomed.raw_metadata_xml.df.printSchema()
 
 # MAGIC %md
 # MAGIC
-# MAGIC Now let's take a look at the volume class
+# MAGIC Now let's take a look at the volume class:
 
 # COMMAND ----------
 
@@ -63,14 +63,14 @@ biomed.raw_articles_xml.path
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### `SHOW_TABLE`
+# MAGIC ### `SHOW_GRAPHIC`
 # MAGIC
 # MAGIC The best way to look at how the entities are interrelated in the workflow we can run the setup with the `SHOW_GRAPHIC` argument set to true:
 # MAGIC
 
 # COMMAND ----------
 
-# MAGIC %run ./config/setup $SHOW_TABLE=false $SHOW_GRAPHIC=true
+# MAGIC %run ./config/setup_workflow $SHOW_TABLE=false $SHOW_GRAPHIC=true
 
 # COMMAND ----------
 
@@ -79,9 +79,11 @@ biomed.raw_articles_xml.path
 # MAGIC So the setup of BioMedConfig will only define each of these entities. What it will not do is actually populate those with jobs. Each of the following notebooks we populate a single entity and it is composed this way to more easily step through this data curation.
 # MAGIC
 # MAGIC  * <a href="$./00_BioMedConfig" target="_blank">00_BioMedConfig</a> (This notebook)
-# MAGIC  * <a href="$./0x_xxx" target="_blank">01_xxx</a>
-# MAGIC  * <a href="$./0x_xxx" target="_blank">02_xxx</a>
-# MAGIC  * <a href="$./0x_xxx" target="_blank">03_xxx</a>
-# MAGIC  * <a href="$./0x_xxx" target="_blank">04_xxx</a>
-# MAGIC  * <a href="$./0x_xxx" target="_blank">05_xxx</a>
-# MAGIC  * <a href="$./0x_xxx" target="_blank">06_xxx</a>
+# MAGIC  * <a href="$./01_Metadata_Sync" target="_blank">01_Metadata_Sync</a> Syncs the UC metadata table with PMC. This will ensure that we have a relatively local, fast, current listing of all PMC articles.
+# MAGIC  * <a href="$./02_Articles_Ingest" target="_blank">02_Articles_Ingest</a> This notebook runs a job that ingests PMC raw files into a UC volume dependent upon search criteria.
+# MAGIC  * <a href="$./03_Curate_Articles" target="_blank">03_Curate_Articles</a> This notebook creates an intermediate delta table with all xml articles. This provides a performant source, much faster than reading individual raw xml files to apply our chunking strategy.
+# MAGIC  * <a href="$./04_Chunk_Articles_Content" target="_blank">04_Chunk_Articles_Content</a> This notebook applies a chunking strategy on articles to populate the source delta table for our vector serving index.
+# MAGIC  * <a href="$./05_Sync_VectorSearch_Index" target="_blank">05_Sync_VectorSearch_Index</a> This notebook will sync our delta source table to our vector index.
+# MAGIC  * <a href="$./06_eval_ds" target="_blank">06_eval_ds</a> TODO
+# MAGIC  * <a href="$./07_ift_ds" target="_blank">07_ift_ds</a> TODO
+# MAGIC  * <a href="$./08_cpt_ds" target="_blank">06_cpt_ds</a> TODO

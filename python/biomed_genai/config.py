@@ -5,10 +5,39 @@ from pyspark.sql import SparkSession
 from databricks.vector_search.client import VectorSearchClient
 from databricks.vector_search.index import VectorSearchIndex
 from functools import cached_property
-from .vector_search import get_or_create_endpoint, get_or_create_index
 import re
 import os
 import json
+
+from databricks.vector_search.client import VectorSearchClient
+# TODO: figure out if there is a way to reuse vector_search.py instead of writing helper methods here.
+
+def get_or_create_endpoint(name: str,
+                           endpoint_type='STANDARD'):
+    kwargs = locals()
+    vsc = VectorSearchClient(disable_notice=True)
+    try:
+        return vsc.get_endpoint(name)
+    except Exception as e:
+        return vsc.create_endpoint_and_wait(**kwargs)
+
+
+def get_or_create_index(endpoint_name: str,
+                        index_name: str,
+                        primary_key: str,
+                        source_table_name: str,
+                        pipeline_type: str,
+                        embedding_dimension=None,
+                        embedding_vector_column=None,
+                        embedding_source_column=None,
+                        embedding_model_endpoint_name=None,
+                        sync_computed_embeddings=False):
+    kwargs = locals()
+    vsc = VectorSearchClient(disable_notice=True)
+    try:
+        return vsc.get_index(endpoint_name, index_name)
+    except Exception as e:
+        return vsc.create_delta_sync_index_and_wait(**kwargs)
 
 
 @dataclass
@@ -225,8 +254,8 @@ class BioMedConfig:
                                                             sql_file="CREATE_VOLUME_processed_checkpoints.sql",
                                                             sql_folder=self._config_sql_folder,
                                                             _path_value=f'articles_content_xml'))
-        setattr(self, 'vs_endpoint', type('VS_endpoint', (object,), {}))
-        vector_search = getattr(self, 'Vector_Search')
+        setattr(self, 'vector_search', type('Vector_Search', (object,), {}))
+        vector_search = getattr(self, 'vector_search')
         setattr(vector_search, 'biomed', WS_Endpoint(ws_name='biomed',
                                                      json_file="CREATE_VS_ENDPOINT_biomed.json",
                                                      json_folder=self._config_json_folder))
