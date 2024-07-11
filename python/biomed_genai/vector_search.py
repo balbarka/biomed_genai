@@ -2,17 +2,15 @@
 
 from databricks.vector_search.client import VectorSearchClient
 
+
 def get_or_create_endpoint(name: str,
                            endpoint_type='STANDARD'):
     kwargs = locals()
     vsc = VectorSearchClient(disable_notice=True)
     try:
-        rslt = vsc.get_endpoint(name)
-        return rslt
+        return vsc.get_endpoint(name)
     except Exception as e:
-        vsc.create_endpoint_and_wait(**kwargs)
-        rslt = vsc.get_endpoint(name)
-        return rslt
+        return vsc.create_endpoint_and_wait(**kwargs)
 
 
 def get_or_create_index(endpoint_name: str,
@@ -28,9 +26,6 @@ def get_or_create_index(endpoint_name: str,
     kwargs = locals()
     vsc = VectorSearchClient(disable_notice=True)
     try:
-        rslt = vsc.get_index(endpoint_name, index_name)
-        return rslt
+        return vsc.get_index(endpoint_name, index_name)
     except Exception as e:
-        vsc.create_delta_sync_index_and_wait(**kwargs)
-        rslt = vsc.get_index(endpoint_name, index_name)
-        return rslt
+        return vsc.create_delta_sync_index_and_wait(**kwargs)

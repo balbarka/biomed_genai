@@ -2,9 +2,75 @@ import pyspark
 import delta
 from dataclasses import dataclass
 from pyspark.sql import SparkSession
+from databricks.vector_search.client import VectorSearchClient
+from databricks.vector_search.index import VectorSearchIndex
 from functools import cached_property
+from .vector_search import get_or_create_endpoint, get_or_create_index
 import re
 import os
+import json
+
+
+@dataclass
+class WS_JSON_Entity:
+    # This is a base class for WS entities that can be instantiated from JSON file config
+    ws_name: str
+    json_file: str
+    json_folder: str
+
+    @cached_property
+    def vs_client(self) -> VectorSearchClient:
+        # TODO: Enable Authentication from secrets (instead of from notebook credentials)
+        return VectorSearchClient()
+
+    @cached_property
+    def json_path(self) -> str:
+        return "/".join([self.json_folder, self.json_file])
+
+    @cached_property
+    def json_relative_url(self) -> str:
+        return self.json_path.replace("/Workspace/", "#workspace/")
+
+    @cached_property
+    def json_dict(self) -> dict:
+        with open(self.json_path, 'r') as file:
+            return json.load(file)
+
+
+@dataclass
+class WS_Endpoint(WS_JSON_Entity):
+
+    @cached_property
+    def ws_relative_url(self) -> str:
+        return '/compute/vector-search/' + self.name
+
+    @property
+    def endpoint(self) -> dict:
+        return get_or_create_endpoint(**self.json_dict)
+
+    @cached_property
+    def name(self) -> str:
+        return self.endpoint.get('name')
+
+
+@dataclass
+class WS_Index(WS_JSON_Entity):
+
+    @cached_property
+    def ws_relative_url(self) -> str:
+        return f"/explore/data/{'/'.join(self.ws_name.split('.'))}/"
+
+    @property
+    def index(self) -> VectorSearchIndex:
+        kwargs = self.json_dict
+        # Convention is that source_table_name + '_vs_index' = index_name
+        kwargs["source_table_name"] = self.ws_name[:9]
+        kwargs["index_name"] = self.ws_name
+        return get_or_create_index(**kwargs)
+
+    @cached_property
+    def name(self) -> str:
+        return self.index.name
 
 
 @dataclass
@@ -159,6 +225,16 @@ class BioMedConfig:
                                                             sql_file="CREATE_VOLUME_processed_checkpoints.sql",
                                                             sql_folder=self._config_sql_folder,
                                                             _path_value=f'articles_content_xml'))
+        setattr(self, 'vs_endpoint', type('VS_endpoint', (object,), {}))
+        vector_search = getattr(self, 'Vector_Search')
+        setattr(vector_search, 'biomed', WS_Endpoint(ws_name='biomed',
+                                                     json_file="CREATE_VS_ENDPOINT_biomed.json",
+                                                     json_folder=self._config_json_folder))
+        biomed = getattr(vector_search, 'biomed')
+        setattr(biomed, 'processed_articles_content_vs_index',
+                WS_Endpoint(ws_name=f'{schema.processed.name}.articles_content_vs_index',
+                            json_file="CREATE_VS_ENDPOINT_biomed.json",
+                            json_folder=self._config_json_folder))
 
     @cached_property
     def spark(self) -> SparkSession:
