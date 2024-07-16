@@ -10,7 +10,7 @@ import os
 import json
 
 from databricks.vector_search.client import VectorSearchClient
-# TODO: figure out if there is a way to reuse vector_search.py instead of writing helper methods here.
+
 
 def get_or_create_endpoint(name: str,
                            endpoint_type='STANDARD'):
@@ -20,7 +20,6 @@ def get_or_create_endpoint(name: str,
         return vsc.get_endpoint(name)
     except Exception as e:
         return vsc.create_endpoint_and_wait(**kwargs)
-
 
 def get_or_create_index(endpoint_name: str,
                         index_name: str,
@@ -199,7 +198,7 @@ class UC_Volume(UC_SQL_Entity):
 
 
 @dataclass
-class BioMedConfig:
+class BioMedWorkflowConfig:
     # This is the class we'll use to consolidate our uc application entities into a single configuration
     _catalog_name: str = 'biomed_genai'
     _schema_raw_name: str = 'raw'
@@ -257,13 +256,13 @@ class BioMedConfig:
         setattr(self, 'vector_search', type('Vector_Search', (object,), {}))
         vector_search = getattr(self, 'vector_search')
         setattr(vector_search, 'biomed', WS_Endpoint(ws_name='biomed',
-                                                     json_file="CREATE_VS_ENDPOINT_biomed.json",
+                                                     json_file="ENDPOINT_biomed.json",
                                                      json_folder=self._config_json_folder))
         biomed = getattr(vector_search, 'biomed')
         setattr(biomed, 'processed_articles_content_vs_index',
-                WS_Endpoint(ws_name=f'{schema.processed.name}.articles_content_vs_index',
-                            json_file="CREATE_VS_ENDPOINT_biomed.json",
-                            json_folder=self._config_json_folder))
+                WS_Index(ws_name=f'{schema.processed.name}.articles_content_vs_index',
+                         json_file="INDEX_processed_articles_content_vs_index.json",
+                         json_folder=self._config_json_folder))
 
     @cached_property
     def spark(self) -> SparkSession:

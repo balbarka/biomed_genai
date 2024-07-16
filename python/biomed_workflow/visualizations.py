@@ -95,8 +95,8 @@ def workflow_graphic(config):
                        'href': hyperlink,
                        'target': "_blank"})
 
-    with dot.subgraph(name='cluster_biomed_pipeline') as pp:
-        pp.body.append('label="{BioMed GenAI Pipeline}"')
+    with dot.subgraph(name='cluster_biomed_workflow') as pp:
+        pp.body.append('label="{BioMed Workflow}"')
         with pp.subgraph(name='cluster_pmc') as pmc:
             pmc.body.append('label="{PMC}"')
             pmc.body.append('style="filled"')
@@ -134,7 +134,7 @@ def workflow_graphic(config):
 
             pro.node('processed_synthetic', '', fillcolor='red', shape='point')
             uc_table_node(pro, 'articles_content', hyperlink=config.processed_articles_content.uc_relative_url)
-            index_node(pro, 'processed_articles_content_vs_index', hyperlink=config.vector_search.biomed.processed_articles_content_vs_index.ws_relative_url)
+            index_node(pro, 'articles_content_vs_index', hyperlink=config.vector_search.biomed.processed_articles_content_vs_index.ws_relative_url)
             uc_ds_node(pro, 'cpt_ds')
             uc_ds_node(pro, 'ift_ds')
             uc_ds_node(pro, 'eval_ds')
@@ -156,21 +156,21 @@ def workflow_graphic(config):
         dot.edge('articles_xml', 'eval_ds', style='invis')
         dot.edge('articles_xml', 'articles_content')
         
-        dot.edge('processed_synthetic', 'instruct_ds')
-        dot.edge('processed_synthetic', 'pretrain_ds', style='invis')
-        dot.edge('processed_synthetic', 'processed_articles_content_vs_index', style='invis')
-        dot.edge('articles_content', 'processed_articles_content_vs_index')        
-        dot.edge('articles_content', 'pretrain_ds')
+        dot.edge('processed_synthetic', 'ift_ds')
+        dot.edge('processed_synthetic', 'cpt_ds', style='invis')
+        dot.edge('processed_synthetic', 'articles_content_vs_index', style='invis')
+        dot.edge('articles_content', 'articles_content_vs_index')        
+        dot.edge('articles_content', 'cpt_ds')
         dot.edge('eval_ds', 'processed_synthetic')
-        dot.edge('eval_ds', 'instruct_ds', style='invis')
+        dot.edge('eval_ds', 'ift_ds', style='invis')
         dot.edge('articles_content', 'processed_synthetic')
 
     html = dot._repr_image_svg_xml()
 
     html = re.sub(r'<svg width=\"\d*pt\" height=\"\d*pt\"',
                   '<div style="text-align:center;"><svg width="800pt" aligned=center', html)
-    html = re.sub(r'{BioMed GenAI Pipeline}',
-                  f'<a href="https://github.com/balbarka/biomed_genai" target="_blank">BioMed GenAI Pipeline</a>',
+    html = re.sub(r'{BioMed Workflow}',
+                  f'<a href="https://github.com/balbarka/biomed_genai" target="_blank">BioMed Workflow</a>',
                   html)
     html = re.sub(r'{PMC}',
                   f'<a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PMC</a>',

@@ -3,9 +3,9 @@
 # MAGIC
 # MAGIC # Articles Ingest
 # MAGIC
-# MAGIC **Objective**: This notebook will use both developer arguments, `biomed.raw_metadata`, and `biomed.raw_search_hist` to query PMC for new articles related to our key word search topcis of interest. Upon a successful run, `biomed.raw_metadata` and `biomed.raw_search_hist` tables will be updated with search and download metadata and articles will be downloaded to `biomed.raw_articles` folder location.
+# MAGIC **Objective**: This notebook will use arguments `biomed.raw_metadata`, and `biomed.raw_search_hist` to query PMC for new articles related to our key word search topics of interest. Upon a successful run, `biomed.raw_metadata` and `biomed.raw_search_hist` tables will be updated with search and download metadata and articles will be downloaded to `biomed.raw_articles` folder location.
 # MAGIC
-# MAGIC This notebook can be used uses helper functions imported from a pmc module. They include:
+# MAGIC This notebook uses convenience functions imported from a <a href="$../../python/biomed_workflow/pmc.py" target="_blank">pmc</a> module. They include:
 # MAGIC
 # MAGIC | Method | Arguments | Description |
 # MAGIC | ------ | --------- | ----------- |
@@ -18,6 +18,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Initialize biomed Configuration Class
 # MAGIC %run ./config/setup_workflow $SHOW_TABLE=false $SHOW_GRAPHIC=true
 
 # COMMAND ----------
@@ -32,7 +33,7 @@
 
 from biomed_genai.pmc import search_articles
 
-INSPECT_SEARCH_ARTICLES = True
+INSPECT_SEARCH_ARTICLES = False
 
 if INSPECT_SEARCH_ARTICLES:
     pmids = search_articles(keyword='breast cancer',
@@ -46,16 +47,16 @@ if INSPECT_SEARCH_ARTICLES:
 # MAGIC
 # MAGIC ## Download Articles using `download_pending_pmids`
 # MAGIC
-# MAGIC There are two examples provided one where you download with a keyword and one where you download and updates from all previous searches. The later is provided to simplify the creation of an update workflow.
+# MAGIC There are two examples provided one where you download with a keyword and one where you download and updates from all previous searches. The later is provided to simplify the eventual creation of an update workflow.
 # MAGIC
 # MAGIC **NOTE**: When running without keywords **ALL** keywords ever downloaded, will be downloaded if pending though yesterday. This could be a larger job if there are many keyword entries in `search_hist`.
 
 # COMMAND ----------
 
-from biomed_genai.pmc import download_pending_articles
+from biomed_workflow.pmc import download_pending_articles
 
-DOWNLOAD_WITH_KEYWORD = False
-DOWNLOAD_WITHOUT_KEYWORD = True
+DOWNLOAD_WITH_KEYWORD = True
+DOWNLOAD_WITHOUT_KEYWORD = False
 
 if DOWNLOAD_WITH_KEYWORD:
     articles_status = download_pending_articles(search_hist=biomed.raw_search_hist, 
@@ -90,7 +91,7 @@ display(articles_status.limit(5))
 
 # COMMAND ----------
 
-INSPECT_METADATA_XML_CHANGES = True
+INSPECT_METADATA_XML_CHANGES = False
 
 if INSPECT_METADATA_XML_CHANGES:
     curr_version = spark.sql(f'DESCRIBE HISTORY {biomed.raw_metadata_xml.name} LIMIT 1').collect()[0][0]
@@ -105,17 +106,13 @@ if INSPECT_METADATA_XML_CHANGES:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Inspect `search_hist` (OPTIONAL)
+# MAGIC # [OPTIONAL] Inspect `search_hist`
 # MAGIC
 # MAGIC You will notice if you look at `search_hist` that the entire range of search is captured, not just for the most current update, but for all updates. 
 
 # COMMAND ----------
 
-INSPECT_SEARCH_HIST = True
+INSPECT_SEARCH_HIST = False
 
 if INSPECT_SEARCH_HIST:
     display(biomed.raw_search_hist.df)
-
-# COMMAND ----------
-
-
