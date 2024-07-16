@@ -48,7 +48,7 @@ def get_lc_chain(endpoint_name: str,
             | lc_prompt | lc_model | StrOutputParser())
 
 
-if __name__ == "__main__":
+if __name__ != "__main__":
     # This main is provided to use this python module file as an executable when called within a model serving context
     import mlflow
 
@@ -64,8 +64,8 @@ if __name__ == "__main__":
                          prompt_template=model_config.get("llm_prompt_template"),
                          model_name=model_config.get("llm_model_serving_endpoint_name"))
 
-    # Tell MLflow logging where to find your chain.
-    mlflow.models.set_model(model=chain)
-
     # Enable the RAG Studio Review App and MLFlow to properly display track and display retrieved chunks for evaluation
     mlflow.models.set_retriever_schema(primary_key="id", text_column="content")
+
+    # Tell MLflow logging where to find your chain.
+    mlflow.models.set_model(model=chain)
