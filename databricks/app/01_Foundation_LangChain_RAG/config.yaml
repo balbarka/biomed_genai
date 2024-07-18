@@ -1,0 +1,7 @@
+# config.yaml is created for testing only, this file is not deployed as an mlflow artifact
+# in the mlflow deployment context, model configs will instead be read from experiment parameters
+llm_model_serving_endpoint_name: databricks-dbrx-instruct
+vector_search_endpoint_name: biomed
+vector_search_index_name: biomed_genai.processed.articles_content_vs_index
+llm_prompt_template: |
+    You are an assistant that answers questions. Use the following pieces of retrieved context to answer the question. Some pieces of context may be irrelevant, in which case you should not use them to form the answer.\n\nContext: {context}
