@@ -1,0 +1,40 @@
+# Project Common Configs:
+catalog_name: &catalog_name biomed_genai
+config_ddl_folder: &config_ddl_folder databricks/_config/ddl
+experiments_workspace_folder: &experiments_workspace_folder /experiments/biomed_genai
+
+workflow:
+    # Workflow Common Configs:
+    raw_schema_name: &raw_schema_name raw
+    curated_schema_name: &curated_schema_name curated
+    processed_schema_name: &processed_schema_name processed
+
+    pubmed_wf:
+        # Workflow pubmed_wf Specific Configs:
+        catalog_name: *catalog_name
+        raw_schema_name: *raw_schema_name
+        curated_schema_name: *curated_schema_name
+        processed_schema_name: *processed_schema_name
+        config_ddl_folder: *config_ddl_folder
+        config_vs_folder: databricks/_config/vector_search
+
+agent:
+    # Agent Common Configs:
+    agents_schema_name: &agents_schema_name agents
+
+    bc_qa_chat:
+        # Agent bc_qa_chat Specific Configs:
+        release_version: 1
+        catalog_name: *catalog_name
+        agents_schema_name: *agents_schema_name
+        agent_name: bc_qa_chat
+        experiments_workspace_folder: *experiments_workspace_folder
+        eval_ds_name: bc_eval_ds
+        config_ddl_folder: *config_ddl_folder
+        candidate_models: 
+            - dbrx_lc_rag
+            - llama3_lc_rag
+
+model:
+    # Model Common Configs
+    app_schema: &app_schema agent

@@ -1,9 +1,0 @@
-# Workflow UC Namespace configs
-APP_CATALOG: biomed_genai
-APP_RAW_SCHEMA: raw
-APP_CURATED_SCHEMA: curated
-APP_PROCESSED_SCHEMA: processed
-
-# Workflow DDL paths (can be relative or absolute path)
-APP_CONFIG_DDL_FOLDER: databricks/workflow/config/ddl
-APP_CONFIG_VS_FOLDER: databricks/workflow/config/vector_search

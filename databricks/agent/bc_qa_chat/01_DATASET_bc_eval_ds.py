@@ -56,14 +56,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./_setup/setup_bc_qa_chat
-
-# COMMAND ----------
-
-from biomed_genai.agent.bc_qa_chat.agent_bc_qa_chat import Agent_model_bc_qa_chat
-
-# The configurations for all of our bc_qa_chat agent application
-bc_qa_chat = Agent_model_bc_qa_chat(**config_bc_qa_chat)
+# MAGIC %run ./_setup/setup_bc_qa_chat $SHOW_GOVERNANCE=true $SHOW_AGENT_DEPLOY=false
 
 # COMMAND ----------
 
@@ -179,6 +172,8 @@ bc_eval.set.append(entry)
 # MAGIC You are not required to persist your data as a delta table, but there is already built-in mlflow methods for creating a dataset from a delta table very simple so it is recommended for the UC benefits of accessibility, security, and governance.
 # MAGIC
 # MAGIC The method we will call is `create_or_replace_delta`. Which writes the questions above into a delta table using the same schema as defined in [Evaluation Sets](https://docs.databricks.com/en/generative-ai/agent-evaluation/evaluation-set.html).
+# MAGIC
+# MAGIC **TODO**: Change Create or Replace with Create or Merge which will keep cleaner CDC, smaller writes.
 
 # COMMAND ----------
 
@@ -187,173 +182,93 @@ display(bc_eval.as_df)
 
 # COMMAND ----------
 
-bc_eval.create_or_replace_delta(bc_qa_chat.experiment.eval_ds.name,
-                                overwrite=False)
+# MAGIC %md
+# MAGIC
+# MAGIC # Evaluation Traces to populate `retrieved_context` [OPTIONAL]
+# MAGIC
+# MAGIC Above we completed the part of the Evaluation Dataset that can be provided by domain experts. However, it is a bit more tedious for domain experts to write the desired retrieved context. Thus, we can use the following to interactively pull set that retrieved_context we may want to add above.
+# MAGIC
+# MAGIC **NOTE**: This will not yield any results if this is your first iteration.
+# MAGIC
+# MAGIC **NOTE**: If you see more than one result, that is likely because multiple models versions or multiple dataset versions exist.
+# MAGIC
+# MAGIC **TODO**: Update eval dataclasses to include retrieved_context and provide an example above.
 
 # COMMAND ----------
 
-# Display the spark dataframe of eval_ds
-display(spark.table(bc_qa_chat.experiment.eval_ds.name))
+INTERACTIVE_TRACE = True
+
+if INTERACTIVE_TRACE:
+    import mlflow
+
+    client = mlflow.tracking.MlflowClient()
+    request_id = "bc_1"
+    
+    experiment_ids = [bc_qa_chat.experiment.experiment_id, ]
+    filter_string = f'tags.eval.requestId = "{request_id}"'
+
+    client.search_traces(experiment_ids = experiment_ids,
+                         filter_string = filter_string)
+    
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC
-# MAGIC That's it! We jut created our first version of our evaluation dataset. We'll revisit this delta table again and iterate on it by simply creating newer delta table versions.
+# MAGIC # Validate Evaluation Dataset [OPTIONAL]
 # MAGIC
-# MAGIC To see our dataset in action, let's create our first agent application model. Check out: 
+# MAGIC It can be usefule to make sure that your evaluation dataset works, but we don't want to necessarily have to have a candidate model to do so. In this case, we'll simply evaluate our dataset and persist in this notebook experiment.
+# MAGIC
+# MAGIC **NOTE**: We don't want to save this mlflow experiemnt to our agent experiment because we don't consider this a candidate model. This experiemnt run is only to be able to inspect and validate our Evaluation Dataset is performing as desired.
+# MAGIC
+# MAGIC ---
+# MAGIC
+# MAGIC ## Create a foundation model *function* to test evaluation set
+# MAGIC
+# MAGIC Since evaluation sets are really ever used with models, we'll create our first model evaluation with a simple chat foundation model with no retriver. We are then able to pass this pyfunc model as the model for evalution. 
+# MAGIC
+# MAGIC **Note**: We are only going to create a wrapper function for `dbrx` to run eval. `dbrx` is pre-existing, we are adding no additional functionality so therefore we will not be logging a model in this notebook.
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC
-# MAGIC # Create a foundation model *function* to test evaluation set
-# MAGIC
-# MAGIC Since evaluation sets are really ever used with models, we'll create our first model evaluation with a simple chat foundation model with no retriver. We are then able to pass this pyfunc model as the model for evalution. It's common to call mlflow.evaluate run an evaluate at the same time as creating it and is the convention that we will use for all agent application notebooks.
-# MAGIC
-# MAGIC **Note**: We are only going to create a wrapper function for `dbrx` to run eval. `dbrx` is pre-existing and therefore we will not be logging a model in this notebook.
-# MAGIC
-# MAGIC **Note**: We could create a competing convention that would require us to create a wrapper class for a foundation model. I'm opposed to this convention since foundation models are already well defined, making multiple copies of them wrappend in additional classes that could create confusion. Thus, we are not creating a model that could potentially get promoted where the model is just a pass through to a model serving endpoint.
+VALIDATE_EVALUATION_DATASET = True
 
-# COMMAND ----------
+if VALIDATE_EVALUATION_DATASET:
+    import mlflow
+    import mlflow.deployments
 
-import mlflow
-import mlflow.deployments
+    client = mlflow.deployments.get_deploy_client("databricks")
 
-client = mlflow.deployments.get_deploy_client("databricks")
+    @mlflow.trace()
+    def dbrx_predict(model_input):
+        return client.predict(endpoint="databricks-dbrx-instruct",
+                              inputs=model_input)
 
-@mlflow.trace(name="dbrx_preidct_test")
-def dbrx_predict(model_input):
-    return client.predict(endpoint="databricks-dbrx-instruct",
-                          inputs=model_input)
-
-question = bc_eval.set[0].request.query
-input_example = {"messages": [{"role": "user",
+    # We'll just use our bc_eval from above for a test example
+    question = bc_eval.set[0].request.query
+    input_example = {"messages": [{"role": "user",
                                "content": question}]}
 
-rslt = dbrx_predict(input_example)
-
-# COMMAND ----------
-
-import mlflow
-
-# Start the parent run
-with mlflow.start_run(run_name="Parent Run") as parent_run:
-    # Log a parameter in the parent run
-    mlflow.log_param("parent_param", "value1")
-
-    # Start the first nested run
-    with mlflow.start_run(run_name="Child Run 1", nested=True):
-        mlflow.log_param("child_param_1", "value2")
-        mlflow.log_metric("child_metric_1", 0.85)
-        
-        # Example of logging a model or artifact
-        with open("output.txt", "w") as f:
-            f.write("This is a sample artifact from Child Run 1")
-        mlflow.log_artifact("output.txt")
-
-    # Start the second nested run
-    with mlflow.start_run(run_name="Child Run 2", nested=True):
-        mlflow.log_param("child_param_2", "value3")
-        mlflow.log_metric("child_metric_2", 0.92)
-
-    # Log a metric in the parent run
-    mlflow.log_metric("parent_metric", 0.95)
+    dbrx_predict(input_example)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC
-# MAGIC # Run an evaluation on a Foundation Model Function
+# MAGIC ## Run an evaluation on a Foundation Model Function [OPTIONAL]
 # MAGIC
-# MAGIC **NOTE**: We are going to use a convention where we will have parent / child runs within an mlflow experiment. While it is possible and sometimes useful to write an evaluation expeiment run in the same experiment run, we will instead opt to write our evaluation runs as a nested run.
+# MAGIC Since we are not saving a model, we can go ahead and run our 
 # MAGIC
-# MAGIC **TODO**: Write explaination of artifacts that are created from the method `create_mlflow_eval`
+# MAGIC To inspect the results, use the experiments icon on the right hand side (looks like a beaker).
+# MAGIC
+# MAGIC **NOTE**: This isn't a proper validation on `retrieved_context` since that field requires retriever and there isn't one in our function. 
 
 # COMMAND ----------
-
-# TODO: fix working directly with ds and pull arguments from biomed
 
 from typing import Callable
 from mlflow.models.evaluation.base import EvaluationResult
 
-def create_mlflow_eval(predict_fn: Callable,
-                       experiment_name='/experiments/biomed_app/qa_chat',
-                       run_name='dbrx',
-                       eval_ds_uc_name="",
-                       allow_duplicates=False) -> EvaluationResult:
-    mlflow.set_experiment(experiment_name=experiment_name)
-    runs = mlflow.search_runs(experiment_names=[experiment_name,],
-                              filter_string=f'tags.mlflow.runName = "{run_name}"')
-    if (len(runs) == 0) or allow_duplicates:
-        with mlflow.start_run(run_name="dbrx"):
-            print(f'Creating "{run_name}" run.')
-            return mlflow.evaluate(data=mlflow.data.load_delta(table_name=eval_ds_uc_name,
-                                                               name=eval_ds_uc_name.split(".")[-1]),
-                                   model=predict_fn,
-                                   model_type="databricks-agent")
-    else:
-        print(f'"{run_name}" tags.mlflow.runName already exists.')
-        metrics = mlflow.get_run(run_id=runs.loc[runs.end_time.idxmin()]['run_id']).data.to_dictionary()['metrics']
-        return mlflow.models.EvaluationResult(metrics=metrics,artifacts=None)
-
-eval_rslt = create_mlflow_eval(dbrx_predict,
-                               experiment_name='/experiments/biomed_app/qa_chat',
-                               run_name='dbrx',
-                               eval_ds_uc_name="biomed_genai.processed.eval_ds")
-
-# COMMAND ----------
-
-eval_rslt = create_mlflow_eval(dbrx_predict,
-                               experiment_name='../Volumes/biomed_genai/models/experiments/qa_chat/xxx',
-                               run_name='dbrx',
-                               eval_ds_uc_name="biomed_genai.processed.eval_ds")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ```
-# MAGIC
-# MAGIC from typing import Callable
-# MAGIC from mlflow.models.evaluation.base import EvaluationResult
-# MAGIC from mlflow.data.spark_dataset import SparkDataset
-# MAGIC
-# MAGIC
-# MAGIC def create_mlflow_eval(eval_ds: SparkDataset,
-# MAGIC                        predict_fn: Callable,
-# MAGIC                        experiment_name='/experiments/biomed_app/qa_chat',
-# MAGIC                        run_name='dbrx',
-# MAGIC                        allow_duplicates=False) -> EvaluationResult:
-# MAGIC     mlflow.set_experiment(experiment_name=experiment_name)
-# MAGIC     runs = mlflow.search_runs(experiment_names=[experiment_name,],
-# MAGIC                               filter_string=f'tags.mlflow.runName = "{run_name}"')
-# MAGIC     if (len(runs) == 0) or allow_duplicates:
-# MAGIC         with mlflow.start_run(run_name="dbrx"):
-# MAGIC             print(f'Creating "{run_name}" run.')
-# MAGIC             return mlflow.evaluate(data=eval_ds,
-# MAGIC                                    model=predict_fn,
-# MAGIC                                    model_type="databricks-agent")
-# MAGIC     else:
-# MAGIC         print(f'"{run_name}" tags.mlflow.runName already exists.')
-# MAGIC         metrics = mlflow.get_run(run_id=runs.loc[runs.end_time.idxmin()]['run_id']).data.to_dictionary()['metrics']
-# MAGIC         return mlflow.models.EvaluationResult(metrics=metrics,artifacts=None)
-# MAGIC
-# MAGIC eval_rslt = create_mlflow_eval(eval_ds=biomed.processed_eval_ds.ds,
-# MAGIC                                predict_fn=dbrx_predict,
-# MAGIC                                experiment_name='/experiments/biomed_app/qa_chat',
-# MAGIC                                run_name='dbrx')```
-# MAGIC
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC
-# MAGIC Typically you will use the UI to inspect the metrics, but you can also inspect them from the EvaluationResult dataclass that is returned when you run an evaluation.
-
-# COMMAND ----------
-
-INSPECT_METRICS = True
-
-if INSPECT_METRICS:
-    for k,v in eval_rslt.metrics.items():
-        print(f'{k}: {v}')
+with mlflow.start_run():
+    mlflow.evaluate(data=bc_qa_chat.experiment.eval_ds.ds,
+                    model=dbrx_predict,
+                    model_type="databricks-agent")
