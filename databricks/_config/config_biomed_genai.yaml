@@ -37,4 +37,12 @@ agent:
 
 model:
     # Model Common Configs
-    app_schema: &app_schema agent
+    models_schema: &model_schema models
+    hf_cache:
+        # This model source is developed to mitigate download costs associated with reading from https://huggingface.co/models
+        # Common configurations for HF_CACHE sourced models
+        hf_login_token_secret: "{{secrets/biomed_genai/hf_login_token}}"
+        config_ddl_folder: *config_ddl_folder
+        experiments_workspace_folder: *experiments_workspace_folder
+        volume_hf_hub_cache_catalog: *catalog_name
+        volume_hf_hub_cache_schema: *model_schema

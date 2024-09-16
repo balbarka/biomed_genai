@@ -74,6 +74,11 @@ pubmed_wf.raw_articles_xml.path
 
 # COMMAND ----------
 
+# TODO: Include link to Option1 documentation so reprise followers know we are using option 1 managed sync
+# https://docs.databricks.com/en/generative-ai/vector-search.html
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC
 # MAGIC So the setup of BioMedConfig will only define each of these entities. What it will not do is actually populate those with jobs. Each of the following notebooks we populate a single entity and it is composed this way to more easily step through this data curation.

@@ -63,7 +63,7 @@ html_configs = ('The config class, <i>Agent_model_bc_qa_chat</i>, has been insta
                 f'<a href=#w{PROJECT_ROOT_PATH[2:]}/databricks/_config/config_biomed_genai.yaml>config_biomed_genai.yaml</a> ' +
                 'and are reviewable in the dict <b>config_bc_qa_chat</b>:')
 displayHTML(html_configs)
-print(json.dumps(config_bc_qa_chat, indent=4))
+#print(json.dumps(config_bc_qa_chat, indent=4))
 
 # COMMAND ----------
 
@@ -91,13 +91,13 @@ if (dbutils.widgets.getArgument("SHOW_AGENT_DEPLOY") == 'true') or (dbutils.widg
             from biomed_genai.agent.viz_governance import agent_governance_graphic
             curr_nb_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
             displayHTML(agent_governance_graphic(PROJECT_ROOT_PATH, curr_nb_path))
-            del agent_governance_graphic
+            #del agent_governance_graphic
         except:
             pass
     if dbutils.widgets.getArgument("SHOW_AGENT_DEPLOY") == 'true':
         try:
             from biomed_genai.agent.viz_agent_deploy import agent_deploy_graphic
             displayHTML(agent_deploy_graphic(bc_qa_chat))
-            del agent_deploy_graphic
+            #del agent_deploy_graphic
         except:
             pass

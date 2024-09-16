@@ -26,30 +26,6 @@
 
 # COMMAND ----------
 
-from biomed_genai.agent.bc_qa_chat.agent_bc_qa_chat import Agent_model_bc_qa_chat
-bc_qa_chat = Agent_model_bc_qa_chat(**config_bc_qa_chat)
-
-html_configs = ('The config class, <i>Agent_model_bc_qa_chat</i>, has been instantiated as <b>bc_qa_chat</b>.<br>' +
-                'The instantiation arguments were retrieved from  ' +                                
-                f'<a href=#w{PROJECT_ROOT_PATH[2:]}/databricks/_config/config_biomed_genai.yaml>config_biomed_genai.yaml</a> ' +
-                'and are reviewable in the dict <b>config_bc_qa_chat</b>:')
-displayHTML(html_configs)
-print(json.dumps(config_bc_qa_chat, indent=4))
-
-# COMMAND ----------
-
-from biomed_genai.agent.viz_governance import agent_governance_graphic
-curr_nb_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
-displayHTML(agent_governance_graphic(PROJECT_ROOT_PATH, curr_nb_path))
-
-# COMMAND ----------
-
-from biomed_genai.agent.viz_agent_deploy import agent_deploy_graphic
-displayHTML(agent_deploy_graphic(bc_qa_chat))
-del agent_deploy_graphic
-
-# COMMAND ----------
-
 import mlflow
 from mlflow.tracking import MlflowClient
 
@@ -164,3 +140,7 @@ def get_or_create_agent_review(mdl_version: ModelVersion,
 # agent_deployment_info = get_or_create_agent_review(mdl_version, reviewer_instruction)
 
 agent_deployment_info = deploy_agent(mdl_version, reviewer_instruction)
+
+# COMMAND ----------
+
+

@@ -101,5 +101,14 @@ if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.get
                 pass
         from biomed_genai.workflow.pubmed_wf.viz_workflow import workflow_graphic
         displayHTML(workflow_graphic(config=pubmed_wf))
-        del workflow_graphic
+        #del workflow_graphic
+
+
+# COMMAND ----------
+
+workflow_graphic(config=pubmed_wf)
+
+
+# COMMAND ----------
+
 

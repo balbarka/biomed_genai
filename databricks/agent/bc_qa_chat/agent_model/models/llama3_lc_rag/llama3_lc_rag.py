@@ -51,7 +51,7 @@ from mlflow.entities.run_info import RunInfo
 from mlflow.models.evaluation.base import EvaluationResult
 
 with bc_qa_chat.experiment.create_model_run(overwrite=True,
-                                                nb_experiment=False) as run:
+                                            nb_experiment=False) as run:
         run_info: RunInfo = mlflow.langchain.log_model(lc_model=context.artifacts['model'],
                                                        model_config=context.model_config,
                                                        artifact_path="model",
@@ -60,7 +60,3 @@ with bc_qa_chat.experiment.create_model_run(overwrite=True,
                                                        example_no_conversion=True)
         mlflow.set_tag("release_version", bc_qa_chat.experiment.release_version)
         eval_rslt: EvaluationResult = bc_qa_chat.experiment.evaluate()
-
-# COMMAND ----------
-
-

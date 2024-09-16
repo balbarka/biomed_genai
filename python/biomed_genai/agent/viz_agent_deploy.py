@@ -96,14 +96,14 @@ def agent_deploy_graphic(config):
 
                 ep.node("served_model","Agent Model", fillcolor='#87CEEB', style='filled', shape='rect',
                         **{'width': "2",
-                           'tooltip': "TODO",
-                           'href': "TODO",
+                           'tooltip': "Serving Entity",
+                           'href': "https://adb-830292400663869.9.azuredatabricks.net/ml/endpoints/agents_biomed_genai-agents-bc_qa_chat?o=830292400663869",
                            'target': "_blank"})
 
-                ep.node("feedback_agent","Agent Feedback", fillcolor='#87CEEB', style='filled', shape='rect',
+                ep.node("feedback_agent","Review App", fillcolor='#87CEEB', style='filled', shape='rect',
                         **{'width': "2",
-                           'tooltip': "TODO",
-                           'href': "TODO",
+                           'tooltip': "Review App",
+                           'href': "https://adb-830292400663869.9.azuredatabricks.net/ml/review/biomed_genai.agents.bc_qa_chat/1/chat?o=830292400663869",
                            'target': "_blank"})
 
             with ws.subgraph(name='cluster_ws_metrics') as wsm:

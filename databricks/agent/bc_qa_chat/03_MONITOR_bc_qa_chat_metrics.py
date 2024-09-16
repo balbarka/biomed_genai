@@ -11,10 +11,24 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./_setup/setup_bc_qa_chat $SHOW_GOVERNANCE=true $SHOW_AGENT_DEPLOY=true
+
+# COMMAND ----------
+
+dir(bc_qa_chat)
+
+
+# COMMAND ----------
+
+bc_qa_chat.agent_name
+
+# COMMAND ----------
+
+#TODO - create a component class for these tables and to the aseemblage class
+
 payload_table = "biomed_genai.agents.bc_qa_chat_2_payload"
 assessment_table = "biomed_genai.agents.bc_qa_chat_2_payload_assessment_logs"
 requests_table = "biomed_genai.agents.bc_qa_chat_2_payload_request_logs"
-
 
 # COMMAND ----------
 
