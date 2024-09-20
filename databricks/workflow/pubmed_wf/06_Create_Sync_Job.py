@@ -3,7 +3,9 @@
 # MAGIC
 # MAGIC # Create Sync Job [OPTIONAL]
 # MAGIC
-# MAGIC While we have defined all the steps necessary for refreshing our articles, it is a bit tedious to keep running. This notebook is completely optional for the solution, but it will create a job and schedule it for recurring execution every sunday morning. This is very valuable as it makes our retriver and therefor our eventual RAG application always current.
+# MAGIC While we have defined all the steps necessary for refreshing our articles, it is a bit tedious to keep running with interactive notebook sessions. This notebook is completely optional for the solution, but it will create a job and schedule it for recurring execution every sunday morning. This is very valuable as it makes our retriver and therefor our eventual RAG application always current.
+# MAGIC
+# MAGIC **TODO**: Move reusable methods to \*.py file.
 
 # COMMAND ----------
 

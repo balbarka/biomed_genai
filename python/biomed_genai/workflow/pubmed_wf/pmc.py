@@ -13,7 +13,7 @@ from pyspark.sql import functions as F
 from pyspark.sql.functions import udf
 import pandas as pd
 
-from ..config import UC_Table, UC_Volume
+from biomed_genai.config import UC_Table, UC_Volume
 
 
 @dataclass

@@ -103,12 +103,3 @@ if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.get
         displayHTML(workflow_graphic(config=pubmed_wf))
         #del workflow_graphic
 
-
-# COMMAND ----------
-
-workflow_graphic(config=pubmed_wf)
-
-
-# COMMAND ----------
-
-

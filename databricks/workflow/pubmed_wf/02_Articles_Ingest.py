@@ -5,7 +5,10 @@
 # MAGIC
 # MAGIC **Objective**: This notebook will use arguments `biomed.raw_metadata`, and `biomed.raw_search_hist` to query PMC for new articles related to our key word search topics of interest. Upon a successful run, `biomed.raw_metadata` and `biomed.raw_search_hist` tables will be updated with search and download metadata and articles will be downloaded to `biomed.raw_articles` folder location.
 # MAGIC
-# MAGIC This notebook uses convenience functions imported from a <a href="$../../python/biomed_workflow/pmc.py" target="_blank">pmc</a> module. They include:
+# MAGIC This notebook uses convenience functions imported from a <a href="$../../../python/biomed_genai/workflow/pubmed_wf/pmc.py" target="_blank">pmc</a> module. They include:
+# MAGIC
+# MAGIC
+# MAGIC
 # MAGIC
 # MAGIC | Method | Arguments | Description |
 # MAGIC | ------ | --------- | ----------- |
@@ -14,7 +17,7 @@
 # MAGIC
 # MAGIC **NOTE**: While not explicit in the method names, the search and download functions are limited to xml documents only.
 # MAGIC
-# MAGIC **NOTE**: We are later able to import the `pmc` convenience functions because we have added the path of the modular code to the python path when we run `%run ./config/setup_workflow`.
+# MAGIC **NOTE**: We are later able to import the `pmc` convenience functions because we have added the path of the modular code to the python path when we run `%run ./_setup/setup_pubmed_wf`.
 
 # COMMAND ----------
 
@@ -31,7 +34,7 @@
 
 # COMMAND ----------
 
-from biomed_genai.workflow.pmc import search_articles
+from biomed_genai.workflow.pubmed_wf.pmc import search_articles
 
 INSPECT_SEARCH_ARTICLES = False
 
@@ -53,7 +56,7 @@ if INSPECT_SEARCH_ARTICLES:
 
 # COMMAND ----------
 
-from biomed_genai.workflow.pmc import download_pending_articles
+from biomed_genai.workflow.pubmed_wf.pmc import download_pending_articles
 
 DOWNLOAD_WITH_KEYWORD = True
 DOWNLOAD_WITHOUT_KEYWORD = False
@@ -112,7 +115,7 @@ if INSPECT_METADATA_XML_CHANGES:
 
 # COMMAND ----------
 
-INSPECT_SEARCH_HIST = False
+INSPECT_SEARCH_HIST = True
 
 if INSPECT_SEARCH_HIST:
     display(pubmed_wf.raw_search_hist.df)

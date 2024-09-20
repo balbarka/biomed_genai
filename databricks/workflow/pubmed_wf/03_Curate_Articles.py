@@ -16,6 +16,12 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC
+# MAGIC The `curated_articles_xml` table gets it's DDL from <a href="$../../_config/ddl/CREATE_TABLE_curated_articles_xml.sql" target="_blank">CREATE_TABLE_curated_articles_xml.sql</a>.
+
+# COMMAND ----------
+
 # curated_articles_xml has inner XML for fields front, body, floatgroups, back, and processing_metadata
 
 sql_path = pubmed_wf.curated_articles_xml.sql_path

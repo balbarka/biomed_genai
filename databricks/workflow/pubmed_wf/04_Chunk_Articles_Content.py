@@ -8,11 +8,19 @@
 # MAGIC **NOTE**: Since we are working with XML data we are going to use the [partition-xml](https://docs.unstructured.io/open-source/core-functionality/partitioning#partition-xml) function. There are many libraries out there that can make use of the xml tags we left in our body column and they can excluded easily with regex or opensource xml parsing library. Thus, we left the xml in the body to allow for discovery of new / different parsing strategies in the future.
 # MAGIC
 # MAGIC **NOTE**: YES. We could have used [partition-xml](https://docs.unstructured.io/open-source/core-functionality/partitioning#partition-xml) function to parse from file instead of from the `curated_articles` delta table. Similar to the above note, we did this to make future iterative improvements faster as reading text from file in blob storage has a much larger I/O preformance cost. This was a deliberate architecture decision for future enhancements, not just to conform to a [Medallion Architecture](https://www.databricks.com/glossary/medallion-architecture)... although we are doing that as well.
+# MAGIC
+# MAGIC
 
 # COMMAND ----------
 
 # DBTITLE 1,Initialize pubmed_wf Application Class
 # MAGIC %run ./_setup/setup_pubmed_wf $SHOW_TABLE=false $SHOW_WORKFLOW=true
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC The `curated_articles_xml` table gets it's DDL from <a href="$../../_config/ddl/CREATE_TABLE_processed_articles_content.sql" target="_blank">CREATE_TABLE_processed_articles_content.sql</a>.
 
 # COMMAND ----------
 
