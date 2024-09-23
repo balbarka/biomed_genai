@@ -1,4 +1,5 @@
-from biomed_genai.config import *
+from dataclasses import dataclass
+from biomed_genai.config import UC_SQL_Entity, WS_GenAI_Agent_Experiment, UC_Dataset, UC_Registered_Model
 
 @dataclass
 class Agent_model_bc_qa_chat:

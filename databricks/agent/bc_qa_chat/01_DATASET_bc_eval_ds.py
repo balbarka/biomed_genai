@@ -177,55 +177,8 @@ bc_eval.set.append(entry)
 
 # COMMAND ----------
 
-@dataclass
-class UC_Dataset(UC_Table):
-    # A Dataset Class, same as a UC_Table, but with properties for the following conventions:
-    # The release_version is maintained 
-    release_version: int
-
-    @property
-    def ds(self):
-        return mlflow.data.load_delta(table_name=self.name,
-                                      name=self.ds_release_version_name,
-                                      version=self.release_version)
-
-    @property
-    def ds_name(self):
-        return self.name.split('.')[-1]
-
-    @property
-    def ds_release_version_name(self):
-        return f'{self.ds_name}-{self.release_version:03}'
-
-# COMMAND ----------
-
 # MAGIC %sql
 # MAGIC SELECT * FROM biomed_genai.agents.bc_eval_ds
-
-# COMMAND ----------
-
-from delta.tables import DeltaTable
-
-dt = DeltaTable.forName(spark, "biomed_genai.agents.bc_eval_ds")
-
-# COMMAND ----------
-
-biomed_genai.agents.bc_eval_ds
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC ALTER TABLE biomed_genai.agents.bc_eval_ds
-# MAGIC SET TBLPROPERTIES ('bc_qa_chat.release_verions' = '2');
-
-# COMMAND ----------
-
-dat = spark.sql("DESCRIBE FORMATTED biomed_genai.agents.bc_eval_ds")
-display(dat)
-
-# COMMAND ----------
-
-dt.detail()
 
 # COMMAND ----------
 
@@ -247,10 +200,6 @@ def create_or_replace_delta(self, uc_name:str, overwrite=False, release_version:
         self.spark.createDataFrame(self.as_df).write.format("delta").mode("overwrite").saveAsTable(uc_name)
     else:
         print(f'No Action, {uc_name} is not empty.')
-
-# COMMAND ----------
-
-bc_eval.__class__
 
 # COMMAND ----------
 

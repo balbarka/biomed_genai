@@ -140,7 +140,3 @@ def get_or_create_agent_review(mdl_version: ModelVersion,
 # agent_deployment_info = get_or_create_agent_review(mdl_version, reviewer_instruction)
 
 agent_deployment_info = deploy_agent(mdl_version, reviewer_instruction)
-
-# COMMAND ----------
-
-
