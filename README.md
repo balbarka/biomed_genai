@@ -22,5 +22,7 @@ Within Generative AI projects, we'll use three Application Component Categories 
 # Project Applications
 
  * pubmed_wf - This includes the workflow tasks to populate a vector store with PubMed articles content. It is initially configured for only articles specific to Breast Cancer, but is intended to be arguemented for any additional articles if interest. 
+   * ![pubmed_wf_entity](./ref/img/pubmed_wf_entity.png)
 
- * bc_qa_char - This agent is a bot that will support reasearchers in the area of Breat Cancer research.
+ * bc_qa_char - This agent is a bot that will support researchers in the area of Breast Cancer research.
+   * ![bc_qa_chat_entity](./ref/img/bc_qa_chat_entity.png)
