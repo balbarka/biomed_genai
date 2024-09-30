@@ -24,5 +24,8 @@ Within Generative AI projects, we'll use three Application Component Categories 
  * pubmed_wf - This includes the workflow tasks to populate a vector store with PubMed articles content. It is initially configured for only articles specific to Breast Cancer, but is intended to be arguemented for any additional articles if interest. 
    * ![pubmed_wf_entity](./ref/img/pubmed_wf_entity.png)
 
- * bc_qa_char - This agent is a bot that will support researchers in the area of Breast Cancer research.
+ * bc_qa_chat - This agent is a bot that will support researchers in the area of Breast Cancer research.
    * ![bc_qa_chat_entity](./ref/img/bc_qa_chat_entity.png)
+
+ * bc_guided_chat - This agent is modification of the bc_qa_chat agent that includes a langchain tool to categorize the persona of the question and adapt the response accordingly.
+   * ![bc_qa_chat_entity](./ref/img/bc_guided_chat_entity.png)
