@@ -35,6 +35,16 @@ agent:
             - dbrx_lc_rag
             - llama3_lc_rag
 
+    bc_guided_chat:
+        # Agent bc_guided_chat Specific Configs:
+        release_version: 2
+        catalog_name: *catalog_name
+        agents_schema_name: *agents_schema_name
+        agent_name: bc_guided_chat
+        experiments_workspace_folder: *experiments_workspace_folder
+        eval_ds_name: bc_guided_eval_ds
+        config_ddl_folder: *config_ddl_folder
+
 model:
     # Model Common Configs
     models_schema: &model_schema models

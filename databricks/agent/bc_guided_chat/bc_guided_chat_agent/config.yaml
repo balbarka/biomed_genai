@@ -1,0 +1,14 @@
+# config.yaml is created for testing only, this file is not deployed as an mlflow artifact
+# in the mlflow deployment context, model configs will instead be read from experiment parameters
+llm_model_serving_endpoint_name: databricks-meta-llama-3-1-70b-instruct
+vector_search_endpoint_name: biomed
+vector_search_index_name: biomed_genai.processed.articles_content_vs_index
+persona_description_template: |
+    - Patient: A patient who is not a healthcare professional but needs to know something about a disease or a symptom. A patient wants to understand more about a disease or a symptom, seek medical attention, or seek medical advice, diagnosis, or treatment for a medical condition.
+    - Researcher: A researcher wants to investigate a disease in an academic research setting. He may ask scientific questions using domain-specific terminology.
+    - Healthcare Professional: A healthcare professional is a person who is trained to provide medical care. He may ask questions using medical terminology.
+    - General inquirer: A general inquirer is a person who is not any of the above personas. He may ask questions using general layman's terminology.
+llm_persona_classifier_prompt_template: |
+    Classify the following question into one of the personas: Patient, Researcher, General Inquirer. Just return the most likely persona.\n\nPlease reference the personas descriptions below to help classify:\nPersonas descriptions: {self.personas_descriptions}\n\nQuestion: {question}\nPersona:
+llm_prompt_template: |
+    You are an assistant that answers questions. Base on the assigned user persona "{persona}", use the following pieces of retrieved context to generate the answer suits the talking flavor of the specific persona. Please reference the personas descriptions below to help generate persona-personalized answers:\n\nPersonas descriptions: {personas_descriptions}\n\nThe assistant should generate the answer in the flavor of the specific persona. Some pieces of context may be irrelevant, in which case you should not use them to form the answer.\n\nContext: {context}
