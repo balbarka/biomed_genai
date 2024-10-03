@@ -147,3 +147,7 @@ def get_or_create_job(job_name: str) -> Job:
     return job
 
 job:Job = get_or_create_job(job_name="BioMed_VS_Sync")
+
+# COMMAND ----------
+
+
