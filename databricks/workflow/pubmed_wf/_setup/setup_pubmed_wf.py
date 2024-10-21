@@ -57,6 +57,10 @@ pubmed_wf = Workflow_pubmed_wf(**config_pubmed_wf)
 
 # COMMAND ----------
 
+pubmed_wf.processed_articles_content
+
+# COMMAND ----------
+
 html_configs = ('The config class, <i>Workflow_pubmed_wf</i>, has been instantiated as <b>pubmed_wf</b>.<br>' +
                 'The instantiation arguments were retrieved from  ' +                                
                 f'<a href=#w{PROJECT_ROOT_PATH[2:]}/databricks/_config/config_biomed_genai.yaml>config_biomed_genai.yaml</a> ' +

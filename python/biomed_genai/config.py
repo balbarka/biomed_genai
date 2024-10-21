@@ -101,7 +101,7 @@ class WS_Index(WS_JSON_Entity):
     def index(self) -> VectorSearchIndex:
         kwargs = self.json_dict
         # Convention is that source_table_name + '_vs_index' = index_name
-        kwargs["source_table_name"] = self.ws_name[:9]
+        kwargs["source_table_name"] = self.ws_name[:-9]
         kwargs["index_name"] = self.ws_name
         return get_or_create_index(**kwargs)
 
@@ -246,6 +246,64 @@ class WS_ExperimentGenAI_Model():
     @cached_property
     def ws_relative_url(self):
         return f"/ml/experiments/{self.experiment_id}?searchFilter=attributes.run_name%3D%22{self.model_run_name}%22"
+
+@dataclass
+class WS_GenAI_Model_Experiment():
+    """Since we will have different conventions for Model and Agent, we have different classes for each"""
+    release_version: int
+    model_name: str
+    experiments_workspace_folder: str
+    eval_ds: UC_Dataset = None
+    default_model_name: str = None
+
+    @cached_property
+    def experiment_name(self):
+        return f'{self.experiments_workspace_folder}/{self.model_name}'
+
+    @cached_property
+    def experiment_id(self):
+        # We run this to make sure that the experiment workspace folder exists even if empty
+        os.makedirs(f'/Workspace/{self.experiments_workspace_folder}', exist_ok=True)
+        return (mlflow.get_experiment_by_name(self.experiment_name) or
+                mlflow.get_experiment(mlflow.create_experiment(self.experiment_name))).experiment_id
+
+    @property
+    def models(self) -> [WS_ExperimentGenAI_Model]:
+        pass
+
+    def model(self, model_run_name: str=None) -> WS_ExperimentGenAI_Model:
+        pass
+
+    def create_model_run(self, model_name: str=None, overwrite: bool=False, nb_experiment: bool=False):
+        """When you run create model run, you are creating a model with a set experiment and model name.
+        If model overwrite is True, it will overwrite any existing model. If overwrite is false and a model already 
+        exists an exception will be thrown. If doing local iterations, you can set nb_eperiment to True. The parameter 
+        overwrite has no effect if nb_experiment is True."""
+        if nb_experiment:
+            return mlflow.start_run(experiment_id=self.experiment_id)
+        else:
+            model = self.model(model_name)
+            if model:
+                if overwrite:
+                    # Return run to overwrite existing, current model
+                    run = mlflow.start_run(run_id=model.model_run_id)
+                else:
+                    if self.model():
+                        # This is to mitigate unintentional overwrites
+                        raise ValueError("The model run {model.model_name} already exists.")
+                    else:
+                        # Return potential new or overwrite
+                        run = mlflow.start_run(experiment_id=self.experiment_id,
+                                               run_name=self.model_run_name)
+            else:
+                # Return new, first model run
+                run =  mlflow.start_run(experiment_id=self.experiment_id,
+                                        run_name=self.model_run_name)
+            mlflow.set_tag("release_version", self.release_version)
+            return run
+
+    def evaluate(self, model_name: str=None) -> EvaluationResult:
+        pass
 
 @dataclass
 class WS_GenAI_Agent_Experiment():

@@ -10,6 +10,10 @@ class Workflow_pubmed_wf:
     config_ddl_folder: str = "./ddl"
     config_vs_folder: str = "./ddl"
 
+    @classmethod
+    def increment_class_variable(cls, value):
+        cls.class_variable += value  # Access class variable
+
     def __post_init__(self):
         setattr(self, 'catalog', UC_SQL_Entity(uc_name=self.catalog_name,
                                                sql_file="CREATE_CATALOG_biomed_workflow.sql",
