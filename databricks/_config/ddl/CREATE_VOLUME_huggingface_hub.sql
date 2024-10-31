@@ -1,1 +1,0 @@
-CREATE VOLUME IF NOT EXISTS {uc_name};
