@@ -11,6 +11,10 @@
 
 # COMMAND ----------
 
+# MAGIC %pip freeze
+
+# COMMAND ----------
+
 # MAGIC %pip install langchain_databricks langchain_openai
 # MAGIC dbutils.library.restartPython()
 

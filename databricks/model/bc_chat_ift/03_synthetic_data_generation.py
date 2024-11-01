@@ -6,6 +6,7 @@
 # MAGIC What this notebook does:
 # MAGIC 1. From the seed.jsonl generated in the previous NB, perform data augmentation to generate more synthetic data.
 # MAGIC 2. Merge seed.jsonl with the synthetic data. Together they will be used for training and evaluating IFT in subsequent NBs
+
 # COMMAND ----------
 
 # MAGIC %pip install langchain_databricks langchain_openai langchain_experimental
@@ -30,7 +31,7 @@ from _setup.utils import write_jsonl_by_line
 # COMMAND ----------
 
 # DBTITLE 1,load parameters and keys. Must only have %run and nothing else
-# MAGIC %run ./_setup/params
+#%run ./_setup/params
 
 # COMMAND ----------
 
@@ -62,7 +63,7 @@ class QA_augmented(TypedDict):
 
 # MAGIC %md
 # MAGIC ## Prompt Variants
-# Set up prompt variants to evolve the question and answer with the same context
+# MAGIC Set up prompt variants to evolve the question and answer with the same context
 
 # COMMAND ----------
 
@@ -130,6 +131,7 @@ Answer_new: {answer_new}""")
 # MAGIC #### Set up examples for Few Shot Prompting and have them evolve by the prompt variant
 
 # COMMAND ----------
+
 examples = dict()
 examples['depth'] = [{"context": "study, reconstruction timing did not show a significant association with\nbreast complications, and the ESTRO-ACROP target volume delineation method did\nnot affect complications in either two-stage delayed reconstruction or\nimmediate reconstruction subgroups. For implant placement, the differences in\nbreast complications between prepectoral and subpectoral approaches are\ncontroversial yet (29–31). We do find it reassuring that the rates of breast\ncomplications observed in our cohort were generally comparable to those\nreported in previous studies. Our findings suggest that introducing the new\nESTRO-ACROP guideline is feasible for patients who underwent subpectoral\nreconstruction in terms of breast complications.\n\nBased on well-known randomized trials that established hypofractionated\nregimen as an effective alternative for adjuvant RT after breast-conserving\nsurgery and mastectomy (32–35), a multi-institutional study by the Korean\nRadiation Oncology Group evaluated the feasibility of hypofractionated RT\nafter breast reconstruction. It revealed that hypofractionated PMRT can\nimprove breast reconstruction outcomes (36). Other recent retrospective\nstudies also suggested that a hypofractionated regimen was comparable with a\nconventional fractionation in terms of breast-related complications,\nregardless of breast reconstruction type (14) and surgical extent (37).\n\nThe major difference between the conventional and the 2019 ESTRO-ACROP\nguidelines is in the definition of the CTV of the chest wall. Whereas prior\ncontouring guidelines generally included the whole implant, the new ESTRO-\nACROP guidelines removed it from the CTV in selected patients (16, 18). Of\nnote, in patients with subpectoral implant breast reconstruction, where\nimplants were inserted in the pocket between the pectoral major and minor, a\nconvex strip of subcutaneous and remnant breast tissue between the anterior\nand skin of the pectoral major was covered.\n\nThe new ESTRO-ACROP guideline has dosimetric benefits to adjacent normal\norgans when using modern volume-based planning techniques. Chang et al.\ncompared dosimetric characteristics of patients with left-sided breast cancer\nbetween two guidelines in VMAT planning. It revealed that the new target\nvolume delineation method significantly reduced exposure to the heart, left\nanterior descending coronary artery (LAD), and ipsilateral lung, maintaining\ntarget coverage, delivery accuracy, and dose heterogeneity compared with\nconventional delineation (17). Similarly, Milligan et al. also evaluated the\nchanges in normal organ sparing and target coverage with VMAT and pencil-beam\nscan planning, finding that the ESTRO target has dosimetric advantages to\ncardiopulmonary organs (18). Previous studies have shown that increasing\nradiation doses to the heart, left ventricle, and LAD are directly associated\nwith long-term rates of high-grade coronary artery stenosis and acute coronary\nevents (38–40). Also, radiation pneumonitis and radiation fibrosis are well-\nknown toxicities caused by RT in patients with breast cancer, which have a\ncorrelation with increasing radiation dose to the lung (41, 42). It is\nnoteworthy that the new guideline could minimize RT-induced adverse events, as\nmost patients with breast cancer are expected to have long-term survival.\n\nThere might be a concern about increasing recurrences at deep chest wall\nstructures, which\n\n",
 "question": "What are the advantages of the new ESTRO-ACROP guideline?",
@@ -197,15 +199,11 @@ examples['paraphrase'] = [{"context": "study, reconstruction timing did not show
 "answer_new": "Early detection is crucial for breast cancer prognosis as it greatly impacts treatment choices and outcomes. A significant number of breast cancer deaths result from metastasis, highlighting the need for prompt intervention. Mammography can lower mortality rates by about 20%. Furthermore, detecting abnormal DNA methylation patterns early can offer essential diagnostic insights, allowing for more timely and targeted therapies. This highlights the need for better detection methods to improve early diagnosis and patient outcomes."}]
 
 # COMMAND ----------
+
 # MAGIC %md
 # MAGIC #### Evolve the Q&A by one prompt variant at a time. Checkpoint augmented data every x inputs to .jsonl
 
 # COMMAND ----------
-
-llm = ChatDatabricks(endpoint = model,
-                  temperature=TEMPERATURE)
-#llm = ChatOpenAI(model = "gpt-4o", temﬂperature=TEMPERATURE)
-
 
 def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fields: List[str],
                                           structured_class: Type[QA_augmented],
@@ -227,7 +225,7 @@ def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fi
                                        question='<question>', answer='<answer>').text)
         structured_llm = llm.with_structured_output(structured_class)
         chain = prompt | structured_llm
-        inputs = df.where(col(split_col)==k).select(*selected_fields).toPandas().to_dict("records")[0:5]
+        inputs = df.where(col(split_col)==k).select(*selected_fields).toPandas().to_dict("records")
     
         # batch run every x inputs
         for i in range(0, len(inputs), save_every):
@@ -250,10 +248,29 @@ def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fi
 
 # COMMAND ----------
 
+llm = ChatDatabricks(endpoint = model,
+                  temperature=TEMPERATURE)
+#llm = ChatOpenAI(model = "gpt-4o", temﬂperature=TEMPERATURE)
+
+outfile = 'data/evolved.jsonl'
+
 batches = []
 batch_structured_llm_with_checkpoints(
     df=seed_promptvariant, selected_fields=selected_fields,
     structured_class=QA_augmented,
     prompt_variants=prompt_variants, split_col = "variant",
-    llm=llm, outfile='data/evolved.jsonl', ans=batches,
+    llm=llm, outfile=outfile, ans=batches,
     save_every=5, verbose=False)
+
+# COMMAND ----------
+
+len(batches)
+
+# COMMAND ----------
+
+evolved_df = spark.createDataFrame(pd.read_json("data/evolved.jsonl", lines=True))
+display(evolved_df)
+
+# COMMAND ----------
+
+
