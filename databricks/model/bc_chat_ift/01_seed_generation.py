@@ -143,17 +143,18 @@ class QA_quality(TypedDict):
 prefix_gen = """Given the context below, generate a question that can be answered following these rules:
 Rules:
 1. The context should be 1-3 paragraphs of text from a medical journal. Otherwise, ignore and return None.
-2. If the context is mostly about numbers, a table, a figure caption, equation or code, ignore and return None. 
+2. If the context is mostly about numbers, a recipe listing reagents, a table, a figure caption, equation or code, ignore and return None. 
 3. If the context is mostly about acknowledging authors' contributions, ignore and return None.
 4. The question should be fully answered from the given context.
-5. The question should be reasonable and answerable by humans.
-6. Do not use phrases like 'provided context', etc. in the question.
-7. Avoid framing questions using the word "and" that can be decomposed into more than one question.
-8. The question should not be longer than 15 words.
-9. The answer should be about 10-80 words long.
-10. The question should be about breast cancer and not broadly about medical research, such as "what is a cell" or "what is an observational study".
-11. The answer to the question should be based on the given context, not contain any links or extra information.
-12. Be as precise as possible with answering the question.
+5. The question should be reasonably understood and answerable by a trained scientist.
+6. Do not ask highly contextual questions that require referencing to a specific study, for example "What are the main findings of the study" or "how many patients are enrolled in the study".  
+7. Do not use phrases like 'provided context', etc. in the question.
+8. Avoid framing questions using the word "and" that can be decomposed into more than one question.
+9. The question should not be longer than 15 words.
+10. The answer should be about 10-80 words long.
+11. The question should be about breast cancer and not broadly about medical research, such as "what is a cell" or "what is an observational study".
+12. The answer to the question should be based on the given context, not contain any links or extra information.
+13. Be as precise as possible with answering the question.
 
 Some examples are provided below.
 Examples:
@@ -344,6 +345,10 @@ generate_seed_data(inputs, ans,
 
 # COMMAND ----------
 
+217/2094
+
+# COMMAND ----------
+
 seed_table_name = "yen.syn_data_gen.seed"
 spark.createDataFrame(pd.DataFrame.from_records(ans)) \
     .write.mode("overwrite") \
@@ -358,5 +363,13 @@ display(seed_df)
 
 # COMMAND ----------
 
+seed_table_name = "yen.syn_data_gen.seed"
+seed_df.na.drop(how='any') \
+    .dropDuplicates() \
+    .write.mode("overwrite") \
+    .saveAsTable(seed_table_name)
+display(spark.table(seed_table_name))
+
+# COMMAND ----------
 
 

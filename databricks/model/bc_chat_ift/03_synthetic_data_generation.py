@@ -16,6 +16,9 @@
 
 import re, os, json
 
+%pip install langchain_databricks langchain_openai langchain_experimental
+
+
 import pyspark.sql
 from langchain_databricks import ChatDatabricks
 from langchain_core.language_models import BaseChatModel
@@ -40,7 +43,8 @@ from _setup.utils import write_jsonl_by_line
 
 # COMMAND ----------
 
-seed_df = spark.createDataFrame(pd.read_json("data/seed.jsonl", lines=True))
+seed_table_name = "yen.syn_data_gen.seed"
+seed_df = spark.table(seed_table_name)
 seed_df.show(truncate=True)
 
 # COMMAND ----------
