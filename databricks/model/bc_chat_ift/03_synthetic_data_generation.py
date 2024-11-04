@@ -237,15 +237,18 @@ def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fi
             subbatch = inputs[i:end]
             if verbose:
                 print(f"Evolving Q&A using {k} prompt for original question {subbatch[0].get('question')}")
-            responses = chain.batch(subbatch, config={"max_concurrency": 2})
+            try:
+                responses = chain.batch(subbatch, config={"max_concurrency": 2})
     
-            # Store the context, original question and answer in the response dictionary (but not passed into the LLM unnecessarily)
-            for i, r in zip(inputs, responses):
-                if r:
-                    for k,v in i.items():
-                        r[k] = v
-                    if verbose: pprint(r)
-    
+                # Store the context, original question and answer in the response dictionary (but not passed into the LLM unnecessarily)
+                for i, r in zip(inputs, responses):
+                    if r:
+                        for k,v in i.items():
+                            r[k] = v
+                        if verbose: pprint(r)
+            except Exception as e:
+                print(f"Exception of type {type(e)}.\n{e}")
+
             # Write to jsonl after every x inputs
             write_jsonl_by_line(responses, outfile)
             ans.extend(responses)
