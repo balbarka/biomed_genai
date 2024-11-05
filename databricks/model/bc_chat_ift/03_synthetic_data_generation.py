@@ -235,8 +235,9 @@ def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fi
         for i in range(0, len(inputs), save_every):
             end = i + save_every
             subbatch = inputs[i:end]
+            print(f"Evolving {i}th Q&A")
             if verbose:
-                print(f"Evolving Q&A using {k} prompt for original question {subbatch[0].get('question')}")
+                print(f"Original question {subbatch[0].get('question')}")
             try:
                 responses = chain.batch(subbatch, config={"max_concurrency": 2})
     
@@ -275,8 +276,27 @@ len(batches)
 
 # COMMAND ----------
 
+tmp = [b for b in batches if b and len(set(b.values()).intersection({None,'None','null'}))==0]
+len(tmp)
+
+# COMMAND ----------
+
+# Option 1 to save evolved data: Read from batches in memory
+evolved_table_name = "yen.syn_data_gen.evolved"
+spark.createDataFrame(pd.DataFrame.from_records(batches)) \
+    .write.mode("overwrite") \
+    .saveAsTable(evolved_table_name)
+display(spark.table(evolved_table_name))
+
+# COMMAND ----------
+
+# Option 2 to save evolved data: Read in from jsonl (if cluster stopped)
 evolved_df = spark.createDataFrame(pd.read_json("data/evolved.jsonl", lines=True))
 display(evolved_df)
+
+# COMMAND ----------
+
+evolved_df.count()
 
 # COMMAND ----------
 
