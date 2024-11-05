@@ -357,12 +357,7 @@ display(spark.table(seed_table_name))
 
 # COMMAND ----------
 
-# TODO: read in jsonl and save as pyspark
-seed_df = spark.createDataFrame(pd.read_json("data/seed.jsonl", lines=True))
-display(seed_df)
-
-# COMMAND ----------
-
+# Option 1 to save seed data: Read from batches in memory
 seed_table_name = "yen.syn_data_gen.seed"
 seed_df.na.drop(how='any') \
     .dropDuplicates() \
@@ -372,4 +367,8 @@ display(spark.table(seed_table_name))
 
 # COMMAND ----------
 
+# Option 2 to save seed data: Read in from jsonl (if cluster stopped)
+seed_df = spark.createDataFrame(pd.read_json("data/seed.jsonl", lines=True))
+display(seed_df)
 
+# COMMAND ----------
