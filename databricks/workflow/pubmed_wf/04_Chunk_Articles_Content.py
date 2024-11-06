@@ -25,12 +25,28 @@
 # COMMAND ----------
 
 # curated_articles_content will include all metadata fields we'll want in vectorsearches
-# TODO: Put constraint so that id is a primary key
 
 sql_path = pubmed_wf.processed_articles_content.sql_path
 with open(sql_path, 'r') as file:
     sql = file.read()
     print(sql)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC We are using [partition_xml](https://docs.unstructured.io/open-source/core-functionality/partitioning#partition-xml) from [unstructured](https://docs.unstructured.io/welcome). There are a lot of configuration options available, but we'll limit our chunking strategy parameter space to the following:
+# MAGIC
+# MAGIC | chunking argument | description |
+# MAGIC | ----------------- | ----------- |
+# MAGIC | `chunking_strategy` | Choose one of \{`none`, `basic`, `by_title` \} |
+# MAGIC | `combine_text_under_n_chars` | When chunking strategy is `combine_text_under_n_chars`, combines elements (like titles) </br> until a section reaches a length of `n` characters. | 
+# MAGIC | `new_after_n_chars` | Cuts off chunks once they reach a length of n characters; a soft max. |
+# MAGIC | `max_characters`    | Chunks elements text and text_as_html (if present) into chunks of length n characters, a hard max. |
+# MAGIC
+# MAGIC **NOTE**: We are not limited to using just unscructured. Other libraries and configurations should be explored to improve vector search content quality.
+# MAGIC
+# MAGIC **NOTE**: Arguably, we could manage our chunking strategy as a model in mlflow. As chunking strategy becomes an improvement area in an application, that is a viable consideration to ensure that applications can get proper content size. Parameters should also be recorded in mlflow. **TODO**: Talk to Yen if this could/should be done as a notebook experiment.
 
 # COMMAND ----------
 
@@ -40,7 +56,12 @@ from pyspark.sql.types import ArrayType, StringType
 import xml.etree.ElementTree as ET
 import html2text
 
-def chunk_xml_body(body: str, attrs: dict):
+chunking_strategy_params = {'chunking_strategy': 'by_title', 
+                            'combine_text_under_n_chars': 500,
+                            'new_after_n_chars': 3850,
+                            'max_characters': 4000}
+
+def chunk_xml_body(body: str, attrs: dict, **kwargs):
     text_maker = html2text.HTML2Text()
     root = ET.Element('root', attrib=attrs)
     root.text = body
@@ -50,11 +71,11 @@ def chunk_xml_body(body: str, attrs: dict):
                                   include_metadata=False,
                                   languages=['eng',],
                                   date_from_file_object=None,
-                                  chunking_strategy='by_title',
+                                  chunking_strategy=kwargs.get('chunking_strategy', 'by_title') ,
                                   multipage_sections=True,
-                                  combine_text_under_n_chars=300,
-                                  new_after_n_chars=1400,
-                                  max_characters=1250)
+                                  combine_text_under_n_chars=kwargs.get('combine_text_under_n_chars',500),
+                                  new_after_n_chars=kwargs.get('new_after_n_chars',3850),
+                                  max_characters=kwargs.get('max_characters',4000))
     body_chunks = [text_maker.handle(str(be.text)) for be in body_elements if len(be.text) >= 110]
     return body_chunks
 
@@ -62,18 +83,11 @@ chunk_xml_body_udf = udf(chunk_xml_body, ArrayType(StringType()))
 
 # COMMAND ----------
 
-INSPECT_CURATED_ARTICLES = True
-
-if INSPECT_CURATED_ARTICLES:
-    display(pubmed_wf.curated_articles_xml.df)
-
-# COMMAND ----------
-
 # Get dataframe of new articles
 from pyspark.sql.functions import col, lit, concat
 from pyspark.sql.functions import xpath_string, explode, posexplode
 
-# Insert all previously unprocessed articles
+# Insert all previously unprocessed articles into processed_articles_content
 pubmed_wf.curated_articles_xml.df.alias("a") \
       .join(pubmed_wf.processed_articles_content.df.select(col("pmid")).distinct().alias("b"),
             col("a.AccessionID") == col("b.pmid"), "left_anti") \
@@ -87,3 +101,21 @@ pubmed_wf.curated_articles_xml.df.alias("a") \
       .withColumn('id', concat(col('pmid'), lit('-'), col('content_pos'))) \
       .drop('content_pos') \
       .write.mode('append').saveAsTable(pubmed_wf.processed_articles_content.name)
+
+# COMMAND ----------
+
+INSPECT_CURATED_ARTICLES = False
+
+if INSPECT_CURATED_ARTICLES:
+    display(pubmed_wf.curated_articles_xml.df)
+
+# COMMAND ----------
+
+INSPECT_PROCESSED_ARTICLES = False
+
+if INSPECT_PROCESSED_ARTICLES:
+    display(pubmed_wf.processed_articles_content.df)
+
+# COMMAND ----------
+
+

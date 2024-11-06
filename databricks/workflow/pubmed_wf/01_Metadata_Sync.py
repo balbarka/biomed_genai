@@ -30,6 +30,10 @@
 
 # COMMAND ----------
 
+pubmed_wf.raw_metadata_xml.cp
+
+# COMMAND ----------
+
 # DBTITLE 0,Stream Configurations
 from pyspark.sql import SparkSession, DataFrame, functions as F
 from delta.tables import DeltaTable
@@ -37,6 +41,7 @@ from delta.tables import DeltaTable
 # readStream Options:
 readStream_options = {"cloudFiles.format": "csv",
                       "cloudFiles.allowOverwrites": "true",
+                      # raw_metadata_xml table checkpoint path
                       "cloudFiles.schemaLocation": pubmed_wf.raw_metadata_xml.cp.path,
                       "header": "true"}
 
@@ -92,13 +97,13 @@ spark.readStream.format("cloudFiles") \
 
 # COMMAND ----------
 
-INSPECT_METADATA_HIST = False
+INSPECT_METADATA_HIST = True
 if INSPECT_METADATA_HIST:
     hist = spark.sql(f"DESCRIBE HISTORY {pubmed_wf.raw_metadata_xml.uc_name}")
     display(hist)
 
 # COMMAND ----------
 
-INSPECT_METADATA = False
+INSPECT_METADATA = True
 if INSPECT_METADATA:
     display(pubmed_wf.raw_metadata_xml.df)

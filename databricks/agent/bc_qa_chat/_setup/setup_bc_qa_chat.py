@@ -67,13 +67,18 @@ displayHTML(html_configs)
 
 # COMMAND ----------
 
+bc_qa_chat
+
+
+# COMMAND ----------
+
 # DBTITLE 1,Conditional Display of Visualizations
 # Setup Notebook Widgets
 dbutils.widgets.dropdown(name="SHOW_GOVERNANCE",
-                         defaultValue="false",
+                         defaultValue="true",
                          choices=["false", "true"])
 dbutils.widgets.dropdown(name="SHOW_AGENT_DEPLOY",
-                         defaultValue="false",
+                         defaultValue="true",
                          choices=["false", "true"])
 
 if (dbutils.widgets.getArgument("SHOW_AGENT_DEPLOY") == 'true') or (dbutils.widgets.getArgument("SHOW_GOVERNANCE") == 'true'):
@@ -101,3 +106,7 @@ if (dbutils.widgets.getArgument("SHOW_AGENT_DEPLOY") == 'true') or (dbutils.widg
             #del agent_deploy_graphic
         except:
             pass
+
+# COMMAND ----------
+
+
