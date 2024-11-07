@@ -1,4 +1,14 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC This notebook is fourth in a series that generates synthetic data for Instruction Fine Tuning (IFT).
+# MAGIC
+# MAGIC What this notebook does:
+# MAGIC 1. Perform Instruction Fine Tuning (IFT) using a chat model on the synthetic data generated and prepared in NBs 1-3
+# MAGIC 2. Serve the model on an endpoint
+# MAGIC 3. Perform inference using the endpoint
+
+# COMMAND ----------
+
 # MAGIC %pip install databricks-genai databricks-sdk mlflow
 
 # COMMAND ----------
@@ -42,7 +52,7 @@ base_endpoint_name = "databricks-meta-llama-3-1-70b-instruct"
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Fine tune using Databricks Foundation Model API with prehosted models
+# MAGIC ## 1. Fine tune using Databricks Foundation Model API with prehosted models
 
 # COMMAND ----------
 
@@ -67,7 +77,7 @@ run.get_events()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Serve finetuned model
+# MAGIC ## 2. Serve finetuned model
 # MAGIC Set up the endpoint config
 
 # COMMAND ----------
@@ -79,7 +89,7 @@ endpoint_config = EndpointCoreConfigInput(
             entity_name=ft_model_name,
             entity_version=get_latest_model_version(ft_model_name),
             min_provisioned_throughput=0, # The minimum tokens per second that the endpoint can scale down to.
-            max_provisioned_throughput=100,# The maximum tokens per second that the endpoint can scale up to.
+            max_provisioned_throughput=3000,# The maximum tokens per second that the endpoint can scale up to.
             scale_to_zero_enabled=True
         )
     ],
@@ -110,7 +120,7 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Inferencing
+# MAGIC ## 3. Inferencing
 # MAGIC Evaluate with our `test` dataset
 
 # COMMAND ----------
@@ -120,13 +130,10 @@ display(test)
 
 # COMMAND ----------
 
+# Get dict/json input for a curl call
 inputs = test.select("prompt").toPandas().to_dict(orient="records")
-input = sample(inputs, 1)[0]
+input = sample(inputs, 1)[0]['prompt']
 input
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
@@ -136,19 +143,20 @@ input
 # COMMAND ----------
 
 # Set input as an env var to pass it to shell
-os.environ['input'] = input['prompt']
+os.environ['input'] = input
 os.environ['DATABRICKS_TOKEN'] = DATABRICKS_TOKEN
+os.environ['endpoint'] = model_endpoint_name
 
 # COMMAND ----------
 
 # MAGIC %sh
-# MAGIC echo $DATABRICKS_TOKEN
+# MAGIC echo $input
 # MAGIC curl \
 # MAGIC -u token:"$DATABRICKS_TOKEN" \
 # MAGIC -X POST \
 # MAGIC -H "Content-Type: application/json" \
 # MAGIC -d '{"prompt": "$input", "temperature":0, "max_tokens":500}' \
-# MAGIC https://adb-830292400663869.9.azuredatabricks.net/serving-endpoints/biomed_model/invocations
+# MAGIC "https://adb-830292400663869.9.azuredatabricks.net/serving-endpoints/$endpoint/invocations"
 
 # COMMAND ----------
 
@@ -174,7 +182,7 @@ pred_ft = spark.sql(f"""
             ai_query('{model_endpoint_name}', prompt) AS prediction
         FROM {test_table_name}
         LIMIT 20""")
-display(pred)
+display(pred_ft)
 
 # COMMAND ----------
 
@@ -185,27 +193,24 @@ display(pred)
 
 # COMMAND ----------
 
-full_prompt = PromptTemplate.from_template("{prompt}")
-default_temperature = 0.1
+# TODO Not working
+# full_prompt = PromptTemplate.from_template("{prompt}")
+# default_temperature = 0.1
 
-llm = ChatDatabricks(endpoint=model_endpoint_name, temperature=default_temperature)
-llm_base = ChatDatabricks(endpoint='databricks-meta-llama-3-1-70b-instruct',
-                  temperature=default_temperature)
-llm_judge = 'databricks-meta-llama-3.1-405b-instruct'
+# llm = ChatDatabricks(endpoint=model_endpoint_name, temperature=default_temperature)
+# llm_base = ChatDatabricks(endpoint='databricks-meta-llama-3-1-70b-instruct',
+#                   temperature=default_temperature)
+# llm_judge = 'databricks-meta-llama-3.1-405b-instruct'
 
-chain = full_prompt | llm_base
-pred_lc = chain.with_retry(stop_after_attempt=2) \
-    .batch(inputs[0:5], config={"max_concurrency": 4})
+# chain = full_prompt | llm_base
+# pred_lc = chain.with_retry(stop_after_attempt=2) \
+#     .batch(inputs[0:5], config={"max_concurrency": 4})
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Evaluation with `mlflow.evaluate`
 # MAGIC Use LLM judges with ground truth answers to compare responses from a finetuned model vs those from a base model without finetuning.
-
-# COMMAND ----------
-
-base_endpoint_name
 
 # COMMAND ----------
 
@@ -239,27 +244,6 @@ with mlflow.start_run(run_name=f"eval_{base_endpoint_name}") as run:
         evaluator_config={"col_mapping": {"messages": [{"role": "user", "content": "prompt"},
                                                        {"role": "assistant", "content": "prediction"}]}}
     )
-
-# COMMAND ----------
-
-# Responses from finetuned model
-with mlflow.start_run(run_name=f"eval_{model_endpoint_name}") as run:
-    results = mlflow.evaluate(
-        data=pred_ft,
-        targets="response",
-        predictions="prediction",
-        model_type="question-answering",
-        evaluators="default",
-        extra_metrics=[
-            mlflow.metrics.genai.answer_similarity(model=f"endpoints:/{llm_judge}"),
-            mlflow.metrics.genai.answer_correctness(model=f"endpoints:/{llm_judge}")
-        ],
-        evaluator_config={"col_mapping": {"inputs": "prompt"}}
-    )
-
-# COMMAND ----------
-
-mlflow.end_run()
 
 # COMMAND ----------
 
