@@ -1,24 +1,23 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC This notebook is third in a series that generates synthetic data for Instruction Fine Tuning (IFT).
+# MAGIC This notebook is second in a series that generates synthetic data for Instruction Fine Tuning (IFT).
 # MAGIC
 # MAGIC What this notebook does:
 # MAGIC 1. From the seed.jsonl generated in the previous NB, perform data augmentation to generate more synthetic data.
-# MAGIC 2. Merge seed.jsonl with the synthetic data. Together they will be used for training and evaluating IFT in subsequent NBs
 
 # COMMAND ----------
 
-# MAGIC %pip install langchain_databricks langchain_openai langchain_experimental
+# MAGIC %pip install langchain_databricks>=0.1.1 langchain-experimental==0.3.3 langchain==0.3.7 langchain-community==0.3.5 langchain-core==0.3.15
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# MAGIC %pip freeze
+
+# COMMAND ----------
+
 import re, os, json
-
-%pip install langchain_databricks langchain_openai langchain_experimental
-
-
 import pyspark.sql
 from langchain_databricks import ChatDatabricks
 from langchain_core.language_models import BaseChatModel
@@ -38,14 +37,25 @@ from _setup.utils import write_jsonl_by_line
 
 # COMMAND ----------
 
+seed_table_name: str = "yen.syn_data_gen.seed"
+evolved_table_name: str = "yen.syn_data_gen.evolved"
+
+outfile: str = 'data/evolved.jsonl'
+
+model_evolve: str = 'databricks-meta-llama-3.1-405b-instruct'
+temperature: float = 0.7
+max_retries: int = 2
+max_concurrency: int = 4
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Read in seed data
 
 # COMMAND ----------
 
-seed_table_name = "yen.syn_data_gen.seed"
 seed_df = spark.table(seed_table_name)
-seed_df.show(truncate=True)
+display(seed_df)
 
 # COMMAND ----------
 
@@ -67,7 +77,7 @@ class QA_augmented(TypedDict):
 
 # MAGIC %md
 # MAGIC ## Prompt Variants
-# MAGIC Set up prompt variants to evolve the question and answer with the same context
+# MAGIC Set up prompt variants inspired by [Evolve-Instruct](https://arxiv.org/abs/2304.12244) to evolve the question and answer with the same context
 
 # COMMAND ----------
 
@@ -89,13 +99,16 @@ prompts_df = spark.createDataFrame(
     pd.DataFrame.from_dict(prompt_variants, orient="index", 
                            columns=['prompt']).reset_index())
 prompts_df = prompts_df.withColumnRenamed('index','variant')
-prompts_df.show(truncate=False)
+display(prompts_df)
 
 # COMMAND ----------
 
 seed_promptvariant = seed_df.crossJoin(prompts_df)
-seed_promptvariant.show(truncate=False)
-selected_fields = ["context", "question", "answer", "prompt"]
+display(seed_promptvariant)
+
+# COMMAND ----------
+
+selected_fields = ["id", "context", "question", "answer", "prompt"]
 
 # COMMAND ----------
 
@@ -209,12 +222,19 @@ examples['paraphrase'] = [{"context": "study, reconstruction timing did not show
 
 # COMMAND ----------
 
+for i in range(0, len(l), 5):
+    end = i + 5
+    print(i, end, l[i:end])
+
+# COMMAND ----------
+
 def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fields: List[str],
                                           structured_class: Type[QA_augmented],
                                           prompt_variants: dict, split_col: str,
                                           llm: Type[BaseChatModel],
                                           outfile: str, ans: List,
-                                          save_every: int = 5, verbose: bool = False) -> List:
+                                          save_every: int = 5, concurrency: int = 5, retries: int = 2,
+                                          verbose: bool = False) -> List:
     for k,v in prompt_variants.items():
         # Set up chain for batch inference
         prompt = FewShotPromptTemplate(
@@ -229,46 +249,51 @@ def batch_structured_llm_with_checkpoints(df: pyspark.sql.DataFrame, selected_fi
                                        question='<question>', answer='<answer>').text)
         structured_llm = llm.with_structured_output(structured_class)
         chain = prompt | structured_llm
-        inputs = df.where(col(split_col)==k).select(*selected_fields).toPandas().to_dict("records")
-    
+        inputs = df.where(col(split_col)==k) \
+                .select(*selected_fields) \
+                .dropDuplicates() \
+                .toPandas().to_dict("records")
+
         # batch run every x inputs
         for i in range(0, len(inputs), save_every):
             end = i + save_every
             subbatch = inputs[i:end]
             print(f"Evolving {i}th Q&A")
+            # For debugging dupes
+            write_jsonl_by_line(subbatch, "data/inputs.jsonl")
             if verbose:
                 print(f"Original question {subbatch[0].get('question')}")
             try:
-                responses = chain.batch(subbatch, config={"max_concurrency": 2})
-    
+                responses = chain.with_retry(stop_after_attempt=retries) \
+                    .batch(subbatch, config={"max_concurrency": concurrency})
+
                 # Store the context, original question and answer in the response dictionary (but not passed into the LLM unnecessarily)
                 for i, r in zip(inputs, responses):
                     if r:
                         for k,v in i.items():
                             r[k] = v
-                        if verbose: pprint(r)
+                        if verbose:
+                            pprint(r)
+
+                responses = [r for r in responses if r and len(set(r.values()).intersection({None,'None','null'}))==0]
+                # Write to jsonl after every x inputs
+                write_jsonl_by_line(responses, outfile)
+                ans.extend(responses)
+
             except Exception as e:
                 print(f"Exception of type {type(e)}.\n{e}")
 
-            # Write to jsonl after every x inputs
-            write_jsonl_by_line(responses, outfile)
-            ans.extend(responses)
-
 # COMMAND ----------
 
-llm = ChatDatabricks(endpoint = model,
-                  temperature=TEMPERATURE)
-#llm = ChatOpenAI(model = "gpt-4o", temﬂperature=TEMPERATURE)
-
-outfile = 'data/evolved.jsonl'
+llm = ChatDatabricks(endpoint=model_evolve, temperature=temperature)
 
 batches = []
 batch_structured_llm_with_checkpoints(
     df=seed_promptvariant, selected_fields=selected_fields,
     structured_class=QA_augmented,
-    prompt_variants=prompt_variants, split_col = "variant",
+    prompt_variants=prompt_variants, split_col="variant",
     llm=llm, outfile=outfile, ans=batches,
-    save_every=5, verbose=False)
+    save_every=5, concurrency=max_concurrency, retries=max_retries, verbose=False)
 
 # COMMAND ----------
 
@@ -276,28 +301,37 @@ len(batches)
 
 # COMMAND ----------
 
-tmp = [b for b in batches if b and len(set(b.values()).intersection({None,'None','null'}))==0]
-len(tmp)
-
-# COMMAND ----------
-
 # Option 1 to save evolved data: Read from batches in memory
-evolved_table_name = "yen.syn_data_gen.evolved"
-spark.createDataFrame(pd.DataFrame.from_records(batches)) \
-    .write.mode("overwrite") \
-    .saveAsTable(evolved_table_name)
-display(spark.table(evolved_table_name))
-
-# COMMAND ----------
+evolved_df = spark.createDataFrame(pd.DataFrame.from_records(batches))
 
 # Option 2 to save evolved data: Read in from jsonl (if cluster stopped)
-evolved_df = spark.createDataFrame(pd.read_json("data/evolved.jsonl", lines=True))
+#evolved_df = spark.createDataFrame(pd.read_json("data/evolved.jsonl", lines=True))
 display(evolved_df)
 
 # COMMAND ----------
 
-evolved_df.count()
+display(seed_promptvariant)
 
 # COMMAND ----------
 
+inputs = seed_promptvariant.where(col("variant")=="depth") \
+                .select(*selected_fields) \
+                .dropDuplicates()
+display(inputs)
 
+# COMMAND ----------
+
+# For debugging repeats
+inputs_df = spark.createDataFrame(pd.read_json("data/inputs.jsonl", lines=True))
+display(inputs_df)
+
+# COMMAND ----------
+
+evolved_df.orderBy(["id", "prompt"]) \
+    .select(["id", "prompt", "question", "answer", "question_new", "answer_new", "context"]) \
+    .write.mode("overwrite").option("mergeSchema", "true").saveAsTable(evolved_table_name)
+display(spark.table(evolved_table_name))
+
+# COMMAND ----------
+
+evolved_df.count()
