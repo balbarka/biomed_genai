@@ -1,20 +1,12 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This notebook is first in a series that generates synthetic data for Instruction Fine Tuning (IFT).
+# MAGIC This notebook is first in a series that **generates synthetic seed data** for subsequent chat completion Fine Tuning (FT).
 # MAGIC
 # MAGIC What this notebook does:
-# MAGIC 1. From a chunk as context, generate a question that could be posed.
+# MAGIC 1. Sample document chunks. Using each chunk as context, generate a question that could be posed.
 # MAGIC 2. Generate an answer to the question using only the chunk as a source.
 # MAGIC 3. Steps 1-2 are done by Few Shot Prompting
-# MAGIC 4. Periodically save the context, question, answer and source in a jsonl.
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
+# MAGIC 4. Periodically save the context, question, answer and source in a jsonl and finally a spark table
 
 # COMMAND ----------
 
@@ -39,6 +31,7 @@ from typing import Type
 from typing_extensions import Annotated, TypedDict
 from pyspark.sql.functions import col, size, split
 from _setup.params import *
+from _setup.utils import write_jsonl_by_line
 
 # COMMAND ----------
 
@@ -55,7 +48,7 @@ outfile = "data/seed.jsonl"
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Query chunks as seed
+# MAGIC ## 1. Sample document chunks
 
 # COMMAND ----------
 
@@ -64,25 +57,10 @@ display(df)
 
 # COMMAND ----------
 
-#df.where(df.id=="PMC7616065-31").select('content').toPandas().values[0][0]
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Re-format chunks most similar to a topic into an input dictionary to langchain
-# MAGIC From the chunks queried around various topics, generate a dictionary of the form as input to langchain's chain.
-# MAGIC ```
-# MAGIC [{"context": chunk1},
-# MAGIC  {"context": chunk2},
-# MAGIC  ...]
-# MAGIC  ```
-
-# COMMAND ----------
-
 chunk_sample =df.where(size(split(col('content'), '\W'))>=min_chunk_len) \
     .withColumnRenamed('content', 'context') \
     .select(['id','context']) \
-    .sample(0.1, seed=0)
+    .sample(0.02, seed=0)
 inputs = chunk_sample.toPandas().to_dict(orient='records')
 len(inputs)
 
@@ -93,7 +71,7 @@ display(chunk_sample)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Few Shot Prompting (FSP)
+# MAGIC ## 2. Few Shot Prompting (FSP)
 # MAGIC #### Curate a list of examples for FSP
 
 # COMMAND ----------
@@ -274,7 +252,7 @@ print(prompt_judge.format_prompt(context="<context>",
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Invocation
+# MAGIC ## 3. Invocation
 # MAGIC Test invocation with 1-3 inputs
 
 # COMMAND ----------
@@ -301,7 +279,7 @@ critiques
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Concurrent batch invocation
+# MAGIC #### Concurrent batch invocation
 
 # COMMAND ----------
 
@@ -309,58 +287,62 @@ critiques
 def generate_seed_data(inputs: List[dict], ans: List[dict],
                        chain_gen: Type[RunnableSequence], chain_judge: Type[RunnableSequence],
                        outfile: str = 'data/seed.jsonl', 
-                       save_every: int = 10, concurrency: int = 2, retries: int = 2):
+                       save_every: int = 10, 
+                       concurrency: int = 2, retries: int = 2,
+                       debug_inputs: str = None):
   for i in range(0, len(inputs), save_every):
     try:
       end = i + save_every
       subset = inputs[i:end]
       print(f"Generating Q & A for {i}th context")
+      # For debugging
+      write_jsonl_by_line(subset, debug_inputs, no_none=False)
       responses = chain_gen.with_retry(stop_after_attempt=retries) \
         .batch(subset, config={"max_concurrency": concurrency})
 
       # Ensure the full context is used but not unneccessarily sent to and fro into llm
+      responses_wo_none = []
       for s, r in zip(subset, responses):
         if isinstance(r, dict) \
         and isinstance(s, dict) \
         and len(set(r.values()).intersection({None,'None','null'}))==0:
-          r['context'] = s.get('context')
-          r['id'] = s.get('id')
-        else:
-          responses.remove(r)
+          response_dict = {'id': s.get('id'),
+                        'context': s.get('context'),
+                        'question': r.get('question'),
+                        'answer': r.get('answer')}
+          responses_wo_none.append(response_dict)
       # Ensure all None are removed
-      responses = [r for r in responses if r \
+      responses_wo_none = [r for r in responses_wo_none if r \
         and len(set(r.values()).intersection({None,'None','null'}))==0]
-      valid_responses = responses
+      valid_responses = responses_wo_none.copy()
 
-      if chain_judge and responses:
+      if chain_judge and responses_wo_none:
         critiques = chain_judge.with_retry(stop_after_attempt=retries) \
-          .batch(responses, config={"max_concurrency": concurrency})
+          .batch(responses_wo_none, config={"max_concurrency": concurrency})
         critique_mask = [all(c.values()) for c in critiques if c]
-        valid_responses = [r for r, c in zip(responses, critique_mask) if c]
+        valid_responses = [r for r, c in zip(responses_wo_none, critique_mask) if c]
         #print(valid_responses)
 
     except Exception as e:
       print(f"Exception of type {type(e)}.\n{e}")
 
     # Write to jsonl after every x inputs
-    # TODO: incrementally write to spark
-    with open(outfile, 'a+') as out:
-      for r in valid_responses:
-          # r must not be None 
-          # or contain 'None' values if r is a dict
-          if r and len(set(r.values()).intersection({None,'None','null'}))==0:
-            jout = json.dumps(r) + '\n'
-            out.write(jout)
+    write_jsonl_by_line(valid_responses, outfile, no_none=True)
     ans.extend(valid_responses)
 
 # COMMAND ----------
 
 # TODO: Save to UC volume
 ans = []
-generate_seed_data(inputs[0:100], ans,
+generate_seed_data(inputs, ans,
                    chain_gen, chain_judge,
                    outfile='data/seed.jsonl',
-                   save_every=5, concurrency=max_concurrency, retries=max_retries)
+                   save_every=5, concurrency=max_concurrency, retries=max_retries,
+                   debug_inputs="data/inputs_to_seed.jsonl")
+
+# COMMAND ----------
+
+len(ans)
 
 # COMMAND ----------
 
@@ -369,7 +351,7 @@ seed_df = spark.createDataFrame(pd.DataFrame.from_records(ans))
 
 # Option 2 to save seed data: Read in from jsonl (if cluster stopped)
 #seed_df = spark.createDataFrame(pd.read_json(outfile, lines=True))
-display(seed_df)
+display(seed_df.select(["id","context"]).orderBy("context"))
 
 # COMMAND ----------
 
@@ -381,4 +363,5 @@ display(spark.table(seed_table_name))
 
 # COMMAND ----------
 
-
+input_df = spark.createDataFrame(pd.read_json("data/inputs_to_seed.jsonl", lines=True))
+display(input_df.orderBy("context"))

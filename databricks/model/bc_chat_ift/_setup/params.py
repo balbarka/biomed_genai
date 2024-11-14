@@ -4,7 +4,10 @@ import os
 import json
 import pandas as pd
 from databricks.sdk.runtime import dbutils
+import mlflow
 #from utils import get_current_cluster_id
+
+mlflow.set_registry_uri("databricks-uc")
 
 DATABRICKS_TOKEN: str = os.environ.get('DATABRICKS_TOKEN', dbutils.secrets.get("yen_hls_azure", "token"))
 DATABRICKS_HOST: str = os.environ.get('DATABRICKS_HOST', f"https://{json.loads(dbutils.notebook.entry_point.getDbutils().notebook().getContext().toJson())['tags']['browserHostName']}")

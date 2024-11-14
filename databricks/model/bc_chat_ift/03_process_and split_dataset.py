@@ -1,20 +1,18 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This notebook is third in a series that prepares synthetic data for Instruction Fine Tuning (IFT).
+# MAGIC This notebook is third in a series that **processes synthetic data for subsequent chat completion Fine Tuning** (FT).
 # MAGIC
 # MAGIC What this notebook does:
 # MAGIC 1. Merge seed data (from NB 1) with evolved data (from NB 2)
-# MAGIC 2. Split the data into train and test sets for finetuning and evaluation respectively
-# MAGIC %md
-# MAGIC ## Merge seed data and evolved data
+# MAGIC 2. Re-format the merged data into a messages json array required for chat models
+# MAGIC 3. Split the data into train and test sets for finetuning and evaluation respectively
 
 # COMMAND ----------
 
+import pandas as pd
 from pyspark.sql.types import StringType
-from pyspark.sql.functions import lit, udf, split, size, col
-
-# COMMAND ----------
-
+from pyspark.sql.functions import lit, udf, split, size, col, coalesce, pandas_udf
+from typing import List, Dict
 from _setup.params import *
 
 # COMMAND ----------
@@ -29,7 +27,7 @@ test_table_name = "yen.syn_data_gen.test"
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Read seed data and evolved data
+# MAGIC #### Read seed data and evolved data
 
 # COMMAND ----------
 
@@ -39,7 +37,7 @@ evolved_df = spark.table(evolved_table_name)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Merge seed data and evolved data
+# MAGIC ## 1. Merge seed data and evolved data
 
 # COMMAND ----------
 
@@ -48,7 +46,8 @@ merged_df = seed_df \
     .withColumn('answer_new', lit(None).cast(StringType())) \
     .withColumn('prompt', lit(None).cast(StringType())) \
     .select(*evolved_df.columns) \
-    .union(evolved_df).na.drop(how='any')
+    .union(evolved_df) \
+    .dropDuplicates()
 display(merged_df)
 
 # COMMAND ----------
@@ -57,49 +56,41 @@ merged_df.count(), seed_df.count(), evolved_df.count()
 
 # COMMAND ----------
 
-def make_completion_prompt(question, context):
-    return f"""You are a medical librarian. Answer the question given the following context
-### Question: {question}
-### Context: {context}
-### Answer:"""
-udf_make_completion_prompt = udf(make_completion_prompt, StringType())
+# MAGIC %md
+# MAGIC ## 2. Re-format context, Q&A into a `messages` json required of chat models
 
 # COMMAND ----------
 
-#TODO
-[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input},
-                {"role": "assistant", "content": a}]
-
-# COMMAND ----------
-
-data = merged_df.dropDuplicates() \
+data = merged_df \
     .withColumnRenamed('prompt', 'evolve') \
-    .withColumnRenamed('answer_new', 'response') \
-    .withColumn("prompt", udf_make_completion_prompt(merged_df.question_new,
-                                                     merged_df.context)) \
-    .withColumn('len', size(split(col('prompt'), '\W')))
-display(data)
+    .withColumn('q', coalesce(col('question_new'), col('question'))) \
+    .withColumn('a', coalesce(col('answer_new'), col('answer')))
+data = data \
+    .withColumn("messages", make_chat_udf(data.context, data.q, data.a))
+display(data.orderBy(["id","evolve"]).select(["id", "evolve","question_new", "question", "q", "messages"]))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Split into train and test sets
-# MAGIC Test set should contain the original seed and its evolved variants
+# MAGIC ## 3. Split into train and test sets
+# MAGIC Test set should contain the original seed and all its evolved variants
 
 # COMMAND ----------
 
-test_questions = [row['question'] for row in data.select('question').distinct().sample(0.3).collect()]
+data.select('question').distinct().count()
+
+# COMMAND ----------
+
+test_questions = [row['question'] for row in data.select('question').distinct().sample(0.2).collect()]
 test_questions
 
 # COMMAND ----------
 
-test = data.filter(merged_df.question.isin(test_questions)) \
-    .select(['prompt','response']) \
+test = data.filter(data.question.isin(test_questions)) \
+    .select(["messages"]) \
     .dropDuplicates()
-train = data.filter(~merged_df.question.isin(test_questions)) \
-    .select(['prompt','response']) \
+train = data.filter(~data.question.isin(test_questions)) \
+    .select(["messages"]) \
     .dropDuplicates()
 test.count(), train.count()
 
