@@ -39,6 +39,7 @@ from _setup.utils import write_jsonl_by_line
 seed_table_name: str = "yen.syn_data_gen.seed"
 evolved_table_name: str = "yen.syn_data_gen.evolved"
 
+# TODO: set up volume for these files
 outfile: str = 'data/evolved.jsonl'
 
 model_evolve: str = 'databricks-meta-llama-3.1-405b-instruct'

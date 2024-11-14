@@ -52,6 +52,10 @@ display(merged_df)
 
 # COMMAND ----------
 
+#TODO: save merged_df as train_and_test table
+
+# COMMAND ----------
+
 merged_df.count(), seed_df.count(), evolved_df.count()
 
 # COMMAND ----------
@@ -72,8 +76,9 @@ display(data.orderBy(["id","evolve"]).select(["id", "evolve","question_new", "qu
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Split into train and test sets
+# MAGIC ## 3. Split into train (80%) and test (20%) sets
 # MAGIC Test set should contain the original seed and all its evolved variants
+# MAGIC # TODO: add stratified sampling descfirption
 
 # COMMAND ----------
 
