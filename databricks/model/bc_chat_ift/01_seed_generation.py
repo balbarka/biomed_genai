@@ -1,73 +1,77 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC This notebook is second in a series that generates synthetic data for Instruction Fine Tuning (IFT).
+# MAGIC This notebook is first in a series that **generates synthetic seed data** for subsequent chat completion Fine Tuning (FT).
 # MAGIC
 # MAGIC What this notebook does:
-# MAGIC 1. From a chunkset as context, generate a question that could be posed.
-# MAGIC 2. Generate an answer to the question using only the chunkset as a source.
-# MAGIC 3. Pinpoint the sentence in the chunkset as the source that answers the question.
-# MAGIC The steps 1-3 are done by Few Shot Prompting
-# MAGIC 4. Periodically save the context, question, answer and source in a jsonl.
+# MAGIC 1. Sample document chunks. Using each chunk as context, generate a question that could be posed.
+# MAGIC 2. Generate an answer to the question using only the chunk as a source.
+# MAGIC 3. Steps 1-2 are done by Few Shot Prompting
+# MAGIC 4. Periodically save the context, question, answer and source in a jsonl and finally a spark table
 
 # COMMAND ----------
 
-# MAGIC %pip install langchain==0.2.16 langchain-community==0.2.7 langchain-core==0.3.15 langchain_databricks>=0.1.1 langchain_openai==0.2.5
+# MAGIC %pip install langchain==0.3.7 langchain-community==0.3.5 langchain-core==0.3.15 langchain_databricks>=0.1.1
 # MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+
+# MAGIC %pip freeze
 
 # COMMAND ----------
 
 import re, os, json
 import pandas as pd
 from pandas.errors import EmptyDataError
-from langchain_openai import ChatOpenAI
 from langchain_databricks import ChatDatabricks
 from langchain_core.prompts import FewShotPromptTemplate, PromptTemplate
 from langchain_core.runnables.base import RunnableSequence
 from typing import Optional, List
-from pydantic import BaseModel, Field
+#from pydantic import BaseModel, Field
 from typing import Type
 from typing_extensions import Annotated, TypedDict
+from pyspark.sql.functions import col, size, split
 from _setup.params import *
+from _setup.utils import write_jsonl_by_line
 
 # COMMAND ----------
 
-#%run ./_setup/params
+min_chunk_len: int = 50
+chunk_table: str = "biomed_genai.processed.articles_content"
+model_seed: str = 'databricks-meta-llama-3.1-405b-instruct'
+temperature: float = 0.7
+max_retries: int = 2
+max_concurrency: int = 4
+
+seed_table_name: str = "yen.syn_data_gen.seed"
+outfile = "data/seed.jsonl"
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Query chunks as seed
+# MAGIC ## 1. Sample document chunks
 
 # COMMAND ----------
 
-df = spark.table("biomed_genai.processed.articles_content")
+df = spark.table(chunk_table)
 display(df)
 
 # COMMAND ----------
 
-#df.where(df.id=="PMC7616065-31").select('content').toPandas().values[0][0]
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Re-format chunks most similar to a topic into an input dictionary to langchain
-# MAGIC From the chunks queried around various topics, generate a dictionary of the form as input to langchain's chain.
-# MAGIC ```
-# MAGIC [{"context": concatenated_chunks1},
-# MAGIC  {"context": concatenated_chunks2},
-# MAGIC  ...]
-# MAGIC  ```
-
-# COMMAND ----------
-
-chunk_sample =df.select('content').sample(0.02, seed=0).collect()
-inputs = [{"context": row.content} for row in chunk_sample if len(row.content.split())>=50]
+chunk_sample =df.where(size(split(col('content'), '\W'))>=min_chunk_len) \
+    .withColumnRenamed('content', 'context') \
+    .select(['id','context']) \
+    .sample(0.02, seed=0)
+inputs = chunk_sample.toPandas().to_dict(orient='records')
 len(inputs)
 
 # COMMAND ----------
 
+display(chunk_sample)
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC ## Few Shot Prompting (FSP)
+# MAGIC ## 2. Few Shot Prompting (FSP)
 # MAGIC #### Curate a list of examples for FSP
 
 # COMMAND ----------
@@ -115,7 +119,7 @@ examples_judge = {"context": "1 Introduction\n\nBreast cancer (BRCA) is one of t
 
 # MAGIC %md
 # MAGIC #### Set up a class for langchain structured output
-# MAGIC Note that ChatDatabricks so far supports TypedDict, JSON but not pydantic schemas
+# MAGIC Note that ChatDatabricks so far (v0.1.1) supports TypedDict, JSON but not pydantic schemas
 
 # COMMAND ----------
 
@@ -206,19 +210,8 @@ example_prompt_judge = PromptTemplate.from_template(
 
 # COMMAND ----------
 
-llm = ChatDatabricks(endpoint = model,
-                  temperature=TEMPERATURE)
-# llm = ChatOpenAI(#model = model,
-#                  model="gpt-4o-mini",
-#                  api_key=OPENAI_API_KEY,
-#                  #base_url=BASE_URL,
-#                  temperature=TEMPERATURE
-#                  )
-
-# COMMAND ----------
-
-def create_chain(prefix, suffix, 
-                 examples, example_prompt, 
+def create_chain(llm, prefix, suffix,
+                 examples, example_prompt,
                  input_var, structured_class):
     prompt = FewShotPromptTemplate(
         examples=examples,
@@ -232,8 +225,12 @@ def create_chain(prefix, suffix,
 
 # COMMAND ----------
 
+llm = ChatDatabricks(endpoint=model_seed, temperature=temperature)
+
+# COMMAND ----------
+
 # Chain to generate Q&A from context
-chain_gen, prompt_gen = create_chain(prefix_gen, suffix_gen,
+chain_gen, prompt_gen = create_chain(llm, prefix_gen, suffix_gen,
                  examples_gen, example_prompt_gen,
                  input_var=["context"],
                  structured_class=QA_context)
@@ -243,7 +240,7 @@ print(prompt_gen.format_prompt(context="<context>").text)
 # COMMAND ----------
 
 # Chain to judge Q&A from context
-chain_judge, prompt_judge = create_chain(prefix_judge, suffix_judge,
+chain_judge, prompt_judge = create_chain(llm, prefix_judge, suffix_judge,
                  examples=examples_judge,
                  example_prompt=example_prompt_judge,
                  input_var=["context", "question", "answer"],
@@ -255,7 +252,7 @@ print(prompt_judge.format_prompt(context="<context>",
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Invocation
+# MAGIC ## 3. Invocation
 # MAGIC Test invocation with 1-3 inputs
 
 # COMMAND ----------
@@ -268,21 +265,21 @@ print(prompt_judge.format_prompt(context="<context>",
 # response #TypedDict
 
 # Batch invocation with multiple inputs
-responses = chain_gen.batch(inputs[21:30],
-                        config={"max_concurrency": 3})
+responses = chain_gen.with_retry(stop_after_attempt=max_retries) \
+    .batch(inputs[0:10], config={"max_concurrency": max_concurrency})
 responses
 
 # COMMAND ----------
 
 responses_wo_none = [r for r in responses if r and len(set(r.values()).intersection({None,'None','null'})) == 0]
-critiques = chain_judge.batch(responses_wo_none,
-                        config={"max_concurrency": 3})
+critiques = chain_judge.with_retry(stop_after_attempt=max_retries) \
+    .batch(responses_wo_none, config={"max_concurrency": max_concurrency})
 critiques
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Concurrent batch invocation
+# MAGIC #### Concurrent batch invocation
 
 # COMMAND ----------
 
@@ -290,48 +287,47 @@ critiques
 def generate_seed_data(inputs: List[dict], ans: List[dict],
                        chain_gen: Type[RunnableSequence], chain_judge: Type[RunnableSequence],
                        outfile: str = 'data/seed.jsonl', 
-                       save_every: int = 10, concurrency: int = 2):
+                       save_every: int = 10, 
+                       concurrency: int = 2, retries: int = 2,
+                       debug_inputs: str = None):
   for i in range(0, len(inputs), save_every):
     try:
       end = i + save_every
       subset = inputs[i:end]
       print(f"Generating Q & A for {i}th context")
-      responses = chain_gen.batch(subset,
-                              config={"max_concurrency": concurrency})
-#      valid_responses = responses
+      # For debugging
+      write_jsonl_by_line(subset, debug_inputs, no_none=False)
+      responses = chain_gen.with_retry(stop_after_attempt=retries) \
+        .batch(subset, config={"max_concurrency": concurrency})
 
       # Ensure the full context is used but not unneccessarily sent to and fro into llm
+      responses_wo_none = []
       for s, r in zip(subset, responses):
         if isinstance(r, dict) \
         and isinstance(s, dict) \
         and len(set(r.values()).intersection({None,'None','null'}))==0:
-          r['context'] = s.get('context')
-        else:
-          responses.remove(r)
+          response_dict = {'id': s.get('id'),
+                        'context': s.get('context'),
+                        'question': r.get('question'),
+                        'answer': r.get('answer')}
+          responses_wo_none.append(response_dict)
       # Ensure all None are removed
-      responses = [r for r in responses if r \
+      responses_wo_none = [r for r in responses_wo_none if r \
         and len(set(r.values()).intersection({None,'None','null'}))==0]
-      valid_responses = responses
+      valid_responses = responses_wo_none.copy()
 
-      if chain_judge and responses:
-        critiques = chain_judge.batch(responses,
-                          config={"max_concurrency": concurrency})
+      if chain_judge and responses_wo_none:
+        critiques = chain_judge.with_retry(stop_after_attempt=retries) \
+          .batch(responses_wo_none, config={"max_concurrency": concurrency})
         critique_mask = [all(c.values()) for c in critiques if c]
-        valid_responses = [r for r, c in zip(responses, critique_mask) if c]
+        valid_responses = [r for r, c in zip(responses_wo_none, critique_mask) if c]
         #print(valid_responses)
 
     except Exception as e:
       print(f"Exception of type {type(e)}.\n{e}")
 
     # Write to jsonl after every x inputs
-    # TODO: incrementally write to spark
-    with open(outfile, 'a+') as out:
-      for r in valid_responses:
-          # r must not be None 
-          # or contain 'None' values if r is a dict
-          if r and len(set(r.values()).intersection({None,'None','null'}))==0:
-            jout = json.dumps(r) + '\n'
-            out.write(jout)
+    write_jsonl_by_line(valid_responses, outfile, no_none=True)
     ans.extend(valid_responses)
 
 # COMMAND ----------
@@ -341,25 +337,25 @@ ans = []
 generate_seed_data(inputs, ans,
                    chain_gen, chain_judge,
                    outfile='data/seed.jsonl',
-                   save_every=5, concurrency=5)
+                   save_every=5, concurrency=max_concurrency, retries=max_retries,
+                   debug_inputs="data/inputs_to_seed.jsonl")
 
 # COMMAND ----------
 
-217/2094
+len(ans)
 
 # COMMAND ----------
 
-seed_table_name = "yen.syn_data_gen.seed"
-spark.createDataFrame(pd.DataFrame.from_records(ans)) \
-    .write.mode("overwrite") \
-    .saveAsTable(seed_table_name)
-display(spark.table(seed_table_name))
+# Option 1 to save seed data: Read from ans in memory
+seed_df = spark.createDataFrame(pd.DataFrame.from_records(ans))
+
+# Option 2 to save seed data: Read in from jsonl (if cluster stopped)
+#seed_df = spark.createDataFrame(pd.read_json(outfile, lines=True))
+display(seed_df.select(["id","context"]).orderBy("context"))
 
 # COMMAND ----------
 
-# Option 1 to save seed data: Read from batches in memory
-seed_table_name = "yen.syn_data_gen.seed"
-seed_df.na.drop(how='any') \
+seed_df.na.drop(how='any', subset=["context", "question", "answer"]) \
     .dropDuplicates() \
     .write.mode("overwrite") \
     .saveAsTable(seed_table_name)
@@ -367,8 +363,5 @@ display(spark.table(seed_table_name))
 
 # COMMAND ----------
 
-# Option 2 to save seed data: Read in from jsonl (if cluster stopped)
-seed_df = spark.createDataFrame(pd.read_json("data/seed.jsonl", lines=True))
-display(seed_df)
-
-# COMMAND ----------
+input_df = spark.createDataFrame(pd.read_json("data/inputs_to_seed.jsonl", lines=True))
+display(input_df.orderBy("context"))

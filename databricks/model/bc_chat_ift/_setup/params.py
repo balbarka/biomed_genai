@@ -1,16 +1,23 @@
-from databricks.connect import DatabricksSession
-import os
-import pandas as pd
-
 # Databricks notebook source
-DATABRICKS_TOKEN: str = os.getenv('DATABRICKS_TOKEN')
-OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY')
-BASE_URL: str = f"{os.getenv('DATABRICKS_HOST')}serving-endpoints"
-model = 'databricks-meta-llama-3.1-405b-instruct'
-TEMPERATURE: float = 0.7
+#from databricks.connect import DatabricksSession
+import os
+import json
+import pandas as pd
+from databricks.sdk.runtime import dbutils
+import mlflow
+#from utils import get_current_cluster_id
 
-spark = DatabricksSession.builder.remote(
-   host       = os.getenv('DATABRICKS_HOST'),
-   token      = os.getenv('DATABRICKS_PAT'),
-   cluster_id = os.getenv('CLUSTER_ID')
-).getOrCreate()
+mlflow.set_registry_uri("databricks-uc")
+
+DATABRICKS_TOKEN: str = os.environ.get('DATABRICKS_TOKEN', dbutils.secrets.get("yen_hls_azure", "token"))
+DATABRICKS_HOST: str = os.environ.get('DATABRICKS_HOST', f"https://{json.loads(dbutils.notebook.entry_point.getDbutils().notebook().getContext().toJson())['tags']['browserHostName']}")
+BASE_URL: str = f"{DATABRICKS_HOST}serving-endpoints"
+
+
+# if not in Databricks notebook but in IDE
+if not os.environ.get('DATABRICKS_RUNTIME_VERSION'):
+   spark = DatabricksSession.builder.remote(
+      host       = DATABRICKS_HOST,
+      token      = DATABRICKS_TOKEN,
+      cluster_id = json.loads(dbutils.notebook.entry_point.getDbutils().notebook().getContext().safeToJson())['attributes']['clusterId']
+   ).getOrCreate()
