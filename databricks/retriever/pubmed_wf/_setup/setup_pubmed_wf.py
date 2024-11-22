@@ -51,13 +51,9 @@ config_pubmed_wf['config_ddl_folder'] = path.join(PROJECT_ROOT_PATH, config_pubm
 config_pubmed_wf['config_vs_folder'] = path.join(PROJECT_ROOT_PATH, config_pubmed_wf['config_vs_folder'])
 
 # Using our configs, we'll instantiate our workflow config class pubmed_wf:
-from biomed_genai.workflow.pubmed_wf.workflow_pubmed_wf import Workflow_pubmed_wf
+from biomed_genai.retriever.pubmed_wf.workflow_pubmed_wf import Workflow_pubmed_wf
 
 pubmed_wf = Workflow_pubmed_wf(**config_pubmed_wf)
-
-# COMMAND ----------
-
-pubmed_wf.processed_articles_content
 
 # COMMAND ----------
 
@@ -67,15 +63,6 @@ html_configs = ('The config class, <i>Workflow_pubmed_wf</i>, has been instantia
                 'and are reviewable in the dict <b>config_pubmed_wf</b>:')
 displayHTML(html_configs)
 print(json.dumps(config_pubmed_wf, indent=4))
-
-# COMMAND ----------
-
-dbutils.widgets.dropdown(name="SHOW_TABLE",
-                         defaultValue="false",
-                         choices=["false", "true"])
-dbutils.widgets.dropdown(name="SHOW_WORKFLOW",
-                         defaultValue="false",
-                         choices=["false", "true"])
 
 # COMMAND ----------
 
@@ -90,7 +77,7 @@ dbutils.widgets.dropdown(name="SHOW_WORKFLOW",
 
 if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.getArgument("SHOW_WORKFLOW") == 'true'):
     if dbutils.widgets.getArgument("SHOW_TABLE") == 'true':
-        from biomed_genai.workflow.pubmed_wf.viz_table import workflow_table
+        from biomed_genai.retriever.pubmed_wf.viz_table import workflow_table
         displayHTML(workflow_table(config=pubmed_wf))
         del workflow_table
     if dbutils.widgets.getArgument("SHOW_WORKFLOW") == 'true':
@@ -103,7 +90,7 @@ if (dbutils.widgets.getArgument("SHOW_TABLE") == 'true') or (dbutils.widgets.get
                 subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except subprocess.CalledProcessError as e:
                 pass
-        from biomed_genai.workflow.pubmed_wf.viz_workflow import workflow_graphic
+        from biomed_genai.retriever.pubmed_wf.viz_workflow import workflow_graphic
         displayHTML(workflow_graphic(config=pubmed_wf))
         #del workflow_graphic
 

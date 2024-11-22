@@ -37,61 +37,6 @@
 
 # COMMAND ----------
 
-self = pubmed_wf.vector_search.biomed.processed_articles_content_vs_index
-
-# COMMAND ----------
-
-self.ws_name
-
-# COMMAND ----------
-
-kwargs = self.json_dict
-# Convention is that source_table_name + '_vs_index' = index_name
-kwargs["source_table_name"] = self.ws_name[:-9]
-kwargs["index_name"] = self.ws_name
-kwargs
-
-# COMMAND ----------
-
-def get_or_create_index(endpoint_name: str,
-                        index_name: str,
-                        primary_key: str,
-                        source_table_name: str,
-                        pipeline_type: str,
-                        embedding_dimension=None,
-                        embedding_vector_column=None,
-                        embedding_source_column=None,
-                        embedding_model_endpoint_name=None,
-                        sync_computed_embeddings=False):
-    kwargs = locals()
-    #vsc = VectorSearchClient(disable_notice=True)
-    #try:
-    #    return vsc.get_index(endpoint_name, index_name)
-    #except Exception as e:
-    #    return vsc.create_delta_sync_index_and_wait(**kwargs)
-
-# COMMAND ----------
-
-get_or_create_index(**)
-
-# COMMAND ----------
-
-xxx = pubmed_wf.vector_search.biomed.processed_articles_content_vs_index
-
-# COMMAND ----------
-
-dir(xxx)
-
-# COMMAND ----------
-
-xxx = pubmed_wf.vector_search.biomed.processed_articles_content_vs_index
-
-# COMMAND ----------
-
-dir(xxx)
-
-# COMMAND ----------
-
 pubmed_wf.vector_search.biomed.endpoint
 
 # COMMAND ----------
@@ -118,7 +63,7 @@ pubmed_wf.vector_search.biomed.processed_articles_content_vs_index.index.sync()
 
 # COMMAND ----------
 
-INSPECT_VS_INDEX = True
+INSPECT_VS_INDEX = False
 
 if INSPECT_VS_INDEX:
     query_text = "What are some proteins associated with breast cancer and what methods are available to detect these?"
@@ -142,7 +87,7 @@ if INSPECT_VS_INDEX:
 
 # COMMAND ----------
 
-INSPECT_LC_INDEX = True
+INSPECT_LC_INDEX = False
 
 if INSPECT_LC_INDEX:
     from langchain_community.vectorstores import DatabricksVectorSearch
