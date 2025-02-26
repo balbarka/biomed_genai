@@ -90,7 +90,7 @@ if DOWNLOAD_WITHOUT_KEYWORD:
 
 # COMMAND ----------
 
-INSPECT_METADATA_XML_CHANGES = False
+INSPECT_METADATA_XML_CHANGES = True
 
 if INSPECT_METADATA_XML_CHANGES:
     curr_version = spark.sql(f'DESCRIBE HISTORY {pubmed_wf.raw_metadata_xml.name} LIMIT 1').collect()[0][0]
@@ -111,7 +111,7 @@ if INSPECT_METADATA_XML_CHANGES:
 
 # COMMAND ----------
 
-INSPECT_SEARCH_HIST = False
+INSPECT_SEARCH_HIST = True
 
 if INSPECT_SEARCH_HIST:
     display(pubmed_wf.raw_search_hist.df)

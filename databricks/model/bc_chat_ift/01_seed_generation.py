@@ -7,6 +7,9 @@
 # MAGIC 2. Generate an answer to the question using only the chunk as a source.
 # MAGIC 3. Steps 1-2 are done by Few Shot Prompting
 # MAGIC 4. Periodically save the context, question, answer and source in a jsonl and finally a spark table
+# MAGIC
+# MAGIC
+# MAGIC **NOTE**: Need to look at reference code at [synthetic-simulator](https://github.com/epec254/synthetic-simulator) and where if possible use databricks synthetic genration approach.
 
 # COMMAND ----------
 

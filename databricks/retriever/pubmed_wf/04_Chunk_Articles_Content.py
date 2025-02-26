@@ -104,18 +104,14 @@ pubmed_wf.curated_articles_xml.df.alias("a") \
 
 # COMMAND ----------
 
-INSPECT_CURATED_ARTICLES = False
+INSPECT_CURATED_ARTICLES = True
 
 if INSPECT_CURATED_ARTICLES:
     display(pubmed_wf.curated_articles_xml.df)
 
 # COMMAND ----------
 
-INSPECT_PROCESSED_ARTICLES = False
+INSPECT_PROCESSED_ARTICLES = True
 
 if INSPECT_PROCESSED_ARTICLES:
     display(pubmed_wf.processed_articles_content.df)
-
-# COMMAND ----------
-
-

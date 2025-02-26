@@ -1,22 +1,4 @@
 # Databricks notebook source
-# MAGIC %pip install databricks-sdk[dashboards] databricks-agents
-# MAGIC dbutils.library.restartPython()
-
-# COMMAND ----------
-
-from databricks.sdk.service.dashboards import GenieAPI
-from databricks.sdk import WorkspaceClient
-
-ws = WorkspaceClient()
-gc = GenieAPI(ws)
-gc_cookbook = ws.genie
-
-# COMMAND ----------
-
-xxx = ws.genie
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC
 # MAGIC # `Workflow_pubmed_wf` Config Class Instantiation
